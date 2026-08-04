@@ -45,6 +45,27 @@ const INPUT_REPORT_SIZE = 8;
 const REPORT_ID = 0;
 
 /**
+ * 期待するプロトコルのバージョン。
+ *
+ * 接続時に PING を投げ、デバイスが返す値がこれと一致しなければ接続を拒否する。
+ * スケッチは基板に焼かれたまま残るので、Scratch だけ更新される状況が起きる。
+ * 照合が無いと、噛み合わないコマンドを送って
+ * 「ブロックが無言で何もしない」という一番わかりにくい壊れ方をする。
+ *
+ * sketches/ScratchUiapduino の PROTOCOL_VERSION と同じ値でなければならない。
+ * 互換性の無い変更をしたら両方を上げること。
+ */
+const PROTOCOL_VERSION = 1;
+
+/** ハンドシェイクの結果を表す特別な値 */
+const HANDSHAKE = {
+    /** PING に応答が無かった (スケッチ未書き込み / 別のスケッチ) */
+    NO_RESPONSE: -1,
+    /** バージョンを返さない世代のスケッチ (PING に RSP_OK だけを返す) */
+    LEGACY: 0
+};
+
+/**
  * コマンド ID (Web → UIAPduino, Feature Report の先頭バイト)。
  *
  * 0x01 は Hid.h の「接続通知」で予約済み。
@@ -238,11 +259,56 @@ class UiapduinoProcessor {
 
             await this._sendConnectNotify();
 
+            // デバイス側スケッチとプロトコルが一致しているか確かめる。
+            // ここで弾かないと、噛み合わないコマンドを送り続けることになる。
+            if (!await this._checkVersion()) {
+                this._teardown();
+                return false;
+            }
+
             return true;
         } catch (e) {
             console.error('[uiapduino] connect failed:', e);
             return false;
         }
+    }
+
+    /**
+     * PING を投げてプロトコルのバージョンを照合する。
+     *
+     * デバイス側スケッチは PING に対しバージョンを DATA で返す。
+     * バージョンを持たない世代のスケッチは RSP_OK だけを返すので、
+     * request() は 0 で resolve する。これで世代を見分けられる。
+     *
+     * @returns {Promise<boolean>} 一致していれば true
+     */
+    async _checkVersion () {
+        let version;
+        try {
+            version = await this.request(CMD.PING);
+        } catch (e) {
+            version = HANDSHAKE.NO_RESPONSE;
+        }
+
+        if (version === PROTOCOL_VERSION) return true;
+
+        const reflash = 'sketches/ScratchUiapduino を書き込み直してください。';
+        if (version === HANDSHAKE.NO_RESPONSE) {
+            console.error(
+                '[uiapduino] デバイスが応答しません。' +
+                `スケッチが書き込まれていないか、別のスケッチが動いています。${reflash}`
+            );
+        } else if (version === HANDSHAKE.LEGACY) {
+            console.error(
+                '[uiapduino] スケッチが古すぎます (バージョンを返しません)。' + reflash
+            );
+        } else {
+            console.error(
+                `[uiapduino] プロトコルのバージョンが違います。` +
+                `デバイス=${version} / この拡張機能=${PROTOCOL_VERSION}。${reflash}`
+            );
+        }
+        return false;
     }
 
     /**
@@ -580,3 +646,4 @@ module.exports = UiapduinoProcessor;
 module.exports.CMD = CMD;
 module.exports.MARKER = MARKER;
 module.exports.RSP = RSP;
+module.exports.PROTOCOL_VERSION = PROTOCOL_VERSION;

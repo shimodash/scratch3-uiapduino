@@ -17,7 +17,8 @@ clone した上に、このリポジトリのファイルを被せてビルド�
 | ブロック定義 | 汎用 Arduino 相当。**全ブロック実機確認済み** |
 | WebHID 通信層 | **実機で確認済み**（接続・切断・再接続・入出力） |
 | コマンドプロトコル | uiap-hid-web と同じ `0x52` 方式に統一済み |
-| デバイス側スケッチ | `sketches/ScratchUiapduino/` にあり・**実機で全コマンド確認済み** |
+| デバイス側スケッチ | `sketches/ScratchUiapduino/` にあり・実機で全コマンド確認済み |
+| バージョン照合 | 実装済み・**実機未検証**（スケッチの焼き直しが必要） |
 | ビルド | Windows で通過。インストーラ生成まで確認済み |
 | アイコン | 差し替え済み（カード 600x372 / 小アイコン 80x80） |
 | ビルドスクリプト | scratch3-tello の実績あるものを流用 |
@@ -45,6 +46,7 @@ clone した上に、このリポジトリのファイルを被せてビルド�
 | `scratch-gui/src/lib/libraries/extensions/uiapduino/uiapduino.png` | 拡張機能ライブラリのカード画像 (600x372) |
 | `scratch-gui/src/lib/libraries/extensions/uiapduino/uiapduino-small.png` | 小アイコン (80x80) |
 | `sketches/ScratchUiapduino/ScratchUiapduino.ino` | デバイス側スケッチ |
+| `sketches/ScratchUiapduino/sketch.yaml` | ボードと Tools メニューの設定 |
 | `build-scratch3-uiapduino.ps1` | ビルドスクリプト |
 | `README.md` / `LICENSE` | このファイルとライセンス |
 
@@ -232,7 +234,7 @@ RUN/STOP が使用中のため、Scratch 拡張は衝突しない `0x20` 以降�
 | ID | 名前 | パラメータ | 応答 |
 |---|---|---|---|
 | `0x01` | （接続通知・予約） | なし | なし |
-| `0x20` | PING | なし | OK |
+| `0x20` | PING | なし | DATA(1) → END（プロトコルのバージョン） |
 | `0x21` | PIN_MODE | pin, mode | OK |
 | `0x22` | DIGITAL_WRITE | pin, value | OK |
 | `0x23` | DIGITAL_READ | pin | DATA(1) → END |
@@ -241,6 +243,38 @@ RUN/STOP が使用中のため、Scratch 拡張は衝突しない `0x20` 以降�
 
 接続時には `uiapduinoProcessor.connect()` が接続通知（`0x01`）を送ります。
 デバイス側が `WaitAvailable()` で待っている場合、これが無いと起動しません。
+
+### バージョン照合
+
+**スケッチは基板に焼かれたまま残るので、Scratch だけ更新される状況が起こります。**
+噛み合わないコマンドを送ると「ブロックが無言で何もしない」という
+一番わかりにくい壊れ方をするため、接続時に照合します。
+
+```
+接続 → 接続通知(0x01) → PING(0x20) → バージョン照合 → 成否
+```
+
+デバイスは PING に `DATA(1) = PROTOCOL_VERSION` → `END` を返します。
+一致しなければ**接続を拒否**し、「つなぐ」ブロックは `false` を返します。
+
+| 状況 | 判別 | 開発者コンソールの表示 |
+|---|---|---|
+| スケッチ未書き込み / 別のスケッチ | PING が無応答 | デバイスが応答しません |
+| 旧世代スケッチ | PING に `RSP_OK` だけ（値 0） | スケッチが古すぎます |
+| バージョン不一致 | 値が違う | デバイス=N / この拡張機能=M |
+
+旧世代の判別は自然にできます。以前 PING は `RSP_OK` を返していたので、
+**値なし = 0 が「バージョンを持たない世代」を意味する**ためです。
+
+バージョンは以下の 2 箇所にあり、**必ず同じ値**でなければなりません。
+互換性の無い変更（コマンド ID・応答形式・パラメータの意味の変更）をしたら両方を上げます。
+
+- `scratch-vm/src/extensions/scratch3_uiapduino/uiapduinoProcessor.js` の `PROTOCOL_VERSION`
+- `sketches/ScratchUiapduino/ScratchUiapduino.ino` の `PROTOCOL_VERSION`
+
+この照合には副次的な効果もあります。以前は**デバイスを開けただけで `connect()` が `true`**
+を返していたため、スケッチが書かれていない基板でも「つながっている」状態になり、
+その後すべてのブロックが無言で失敗していました。今はその場で `false` になります。
 
 ブロックは Promise を返すため、Scratch はデバイスの実行完了を待ってから
 次のブロックに進みます（ロックステップ動作）。
@@ -260,17 +294,38 @@ RUN/STOP が使用中のため、Scratch 拡張は衝突しない `0x20` 以降�
 
 `sketches/ScratchUiapduino/ScratchUiapduino.ino`
 
+```
+sketches/ScratchUiapduino/
+  ScratchUiapduino.ino   … 本体
+  sketch.yaml            … ボードと Tools メニューの設定
+```
+
 ### 書き込み設定
 
-| Tools | 値 |
-|---|---|
-| Board | HID ProMicro CH32V003 |
-| Board Version | V1.4 |
-| USB | **WebHID Only** |
-| PWM | **TIM2 Default (pin 2 / PC0)** |
-| Optimize | Smallest (-Os) with LTO |
+**`sketch.yaml` に固定してあるので、手で設定し直す必要はありません。**
+Arduino IDE 2.x はスケッチを開いたときにこのプロファイルを読みます。
+
+参考までに、`sketch.yaml` の `fqbn` は以下と対応します。
+
+| Tools | 値 | fqbn |
+|---|---|---|
+| Board | HID ProMicro CH32V003 | `UIAP_HID:ch32v:CH32V003` |
+| Board Version | V1.4 | `pnum=V14` |
+| USB | **WebHID Only** | `usb=webhid` |
+| PWM | **TIM2 Default (pin 2 / PC0)** | `pwm=default` |
+| Optimize | Smallest (-Os) with LTO | `opt=oslto` |
 
 PWM の設定を間違えると `PWMMIN_REQUIRE_DEFAULT()` がコンパイル時に止めます。
+
+プラットフォームは `UIAP_HID:ch32v (1.2.8)` に固定してあります。
+再現性のためですが、**新しい版が出ても 1.2.8 が使われ続ける**点に注意してください。
+上げる場合は `sketch.yaml` の `platforms` を書き換えます。
+
+arduino-cli なら引数なしでビルドできます。
+
+```
+arduino-cli compile sketches/ScratchUiapduino
+```
 
 `Keyboard+Mouse+WebHID` でも動きますが、この拡張はキーボード／マウスを使いません。
 `WebHID Only` ならインタフェースが 1 つだけになるため、
@@ -349,7 +404,7 @@ PWM 中のピンを普通の GPIO に戻せます。
 
 | 送信 | 結果 |
 |---|---|
-| `20` | `52 00 00` — PING |
+| `20` | `52 00 00` — PING（**バージョン照合を入れる前の版**での記録） |
 | `21 02 01` | `52 00 00` — D2 を出力に。LED 消灯（出力ラッチが 0 のため。Arduino 標準の挙動） |
 | `22 02 01` / `22 02 00` | `52 00 00` — 全点灯 / 消灯 |
 | `23 02` | `52 02 01 ...` → `52 03 00 ...` を **100 回連続で取りこぼしなし** |
@@ -363,6 +418,9 @@ PWM 中のピンを普通の GPIO に戻せます。
 
 `24 02 80` の直後に `21 02 01` → `22 02 01` で全点灯に変わることから、
 `PIN_MODE` の `Pwm_stop()` が PWM 中のピンを GPIO に戻せていることも確認済みです。
+
+**バージョン照合は実機未検証です。** この記録を取った時点の `0x20` は `RSP_OK` を返す版でした。
+現在の版は `52 02 01 01` → `52 03 00` を返すはずです。
 
 ### レポート消失対策
 

@@ -1,0 +1,23 @@
+# Arduino スケッチプロファイル
+#
+# ボードと Tools メニューの設定をここに固定しておくと、
+# 受け取った人が手で設定し直す必要がなくなる。
+#
+# fqbn の各項目は Arduino IDE の Tools メニューに対応する:
+#   pnum=V14      Board Version : V1.4
+#   usb=webhid    USB           : WebHID Only
+#   opt=oslto     Optimize      : Smallest (-Os) with LTO
+#   pwm=default   PWM           : TIM2 Default (pin 2 / PC0)
+#
+# PWM の設定を間違えた場合はスケッチ側の PWMMIN_REQUIRE_DEFAULT() が
+# コンパイル時に止める。
+
+profiles:
+  uiapduino:
+    notes: UIAPduino (HID ProMicro CH32V003) / WebHID Only
+    fqbn: UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,opt=oslto,pwm=default
+    platforms:
+      - platform: UIAP_HID:ch32v (1.2.8)
+        platform_index_url: https://raw.githubusercontent.com/tarosay/board_manager_files/main/package_uiap_hid_index.json
+
+default_profile: uiapduino

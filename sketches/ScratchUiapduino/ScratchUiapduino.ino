@@ -49,6 +49,20 @@ PWMMIN_REQUIRE_DEFAULT();
 // 準備完了通知（Hid.h の Ready プロトコル）。hid-console.html でも観測できる。
 #define READY_MARKER 0x53
 
+// ── プロトコルのバージョン ──────────────────────────────────────────────────
+//
+// PING (0x20) の応答としてこの値を返す。Scratch 側は接続時にこれを読み、
+// 自分が期待する値と違えば接続を拒否する。
+//
+// スケッチは基板に焼かれたまま残るので、Scratch だけ更新される状況が起きる。
+// 照合が無いと、噛み合わないコマンドを送って「ブロックが無言で何もしない」
+// という一番わかりにくい壊れ方をする。
+//
+// 互換性の無い変更（コマンド ID の変更、応答形式の変更、パラメータの意味の変更）
+// をしたら必ず上げること。Scratch 側 uiapduinoProcessor.js の PROTOCOL_VERSION と
+// 同じ値でなければならない。
+#define PROTOCOL_VERSION 1
+
 // ── コマンド ID ─────────────────────────────────────────────────────────────
 // 0x01 は接続通知で予約。0x01-0x11 は uiapruby が使用中のため 0x20 以降を使う。
 #define CMD_CONNECT       0x01
@@ -145,7 +159,8 @@ void loop() {
   if (cmd == CMD_CONNECT) return;
 
   if (cmd == CMD_PING) {
-    rsp_ok();
+    // バージョンを DATA で返す。RSP_OK だけを返す古いスケッチとはここで区別される。
+    rsp_value(PROTOCOL_VERSION, 1);
     return;
   }
 
