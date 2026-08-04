@@ -155,6 +155,61 @@ if ($makeConfigSrc -match 'parallel: 4') {
     Write-Host ">>> webpack.makeConfig.js: Terser のワーカー数を 4 に制限しました" -ForegroundColor Cyan
 }
 
+# --- 公式 Scratch Desktop と区別する ---
+#
+# 上流の electron-builder.yaml は
+#     appId: edu.mit.scratch.scratch-desktop
+#     productName: "Scratch 3"
+# であり、そのままビルドすると公式 Scratch Desktop と
+# アプリ名・appId・バージョンがすべて同一になる。
+# 公式を入れている人がインストールすると同じアプリとみなされて上書きされ、
+# スタートメニューでも見分けがつかない。
+#
+# nsis.artifactName は productName ではなく "Scratch" が直書きされているので、
+# ここも変えないとインストーラのファイル名が変わらない。
+
+$ebPath = "scratch-desktop\electron-builder.yaml"
+$ebSrc = Get-Content $ebPath -Raw
+
+$ebEdits = @(
+    @{ From = 'appId: edu.mit.scratch.scratch-desktop'; To = 'appId: jp.uiap.scratch-uiapduino' },
+    @{ From = 'productName: "Scratch 3"'; To = 'productName: "Scratch UIAPduino"' },
+    @{ From = 'artifactName: "Scratch ${version} Setup.${ext}"'; To = 'artifactName: "Scratch-UIAPduino-${version}-Setup.${ext}"' }
+)
+
+if ($ebSrc -match 'scratch-uiapduino') {
+    Write-Host ">>> electron-builder.yaml: パッチは適用済み" -ForegroundColor DarkGray
+} else {
+    foreach ($e in $ebEdits) {
+        $hits = ([regex]::Matches($ebSrc, [regex]::Escape($e.From))).Count
+        if ($hits -ne 1) {
+            throw "electron-builder.yaml のパッチ位置が特定できません: '$($e.From)' (該当 $hits 箇所)"
+        }
+        $ebSrc = $ebSrc.Replace($e.From, $e.To)
+    }
+    # zip (インストール不要版) のファイル名も揃える。
+    # 既定のままだと "Scratch UIAPduino-3.29.1-ia32-win.zip" とスペース入りになり、
+    # インストーラ側の命名と揃わない。
+    #
+    # electron-builder 22 はトップレベルの zip: を受け付けない
+    # ("configuration has an unknown property 'zip'") ので win 側に置く。
+    # nsis と appx は自前の artifactName を持つため、これが効くのは zip だけ。
+    $winAnchor = '  icon: buildResources/ScratchDesktop.ico'
+    $winHits = ([regex]::Matches($ebSrc, [regex]::Escape($winAnchor))).Count
+    if ($winHits -ne 1) {
+        throw "electron-builder.yaml の win セクションが特定できません (該当 $winHits 箇所)"
+    }
+    $zipName = @'
+  icon: buildResources/ScratchDesktop.ico
+  artifactName: "Scratch-UIAPduino-${version}-portable.${ext}"
+'@
+    $zipName = ($zipName -replace "`r`n", "`n").TrimEnd("`n")
+    $ebSrc = $ebSrc.Replace($winAnchor, $zipName)
+
+    Set-Content -Path $ebPath -Value $ebSrc -NoNewline
+    Write-Host ">>> electron-builder.yaml: appId / productName / artifactName を差し替えました" -ForegroundColor Cyan
+}
+
 # --- ビルド (Electron) ---
 Push-Location scratch-desktop
 Invoke-Checked "npm.cmd" @("run", "fetch")
@@ -173,7 +228,9 @@ Invoke-Checked "npm.cmd" @("run", "compile")
 # コード署名は行わない（証明書があると electron-builder が署名を試みて失敗するため除去）
 Remove-Item Env:CSC_LINK, Env:CSC_KEY_PASSWORD, Env:WIN_CSC_LINK, Env:WIN_CSC_KEY_PASSWORD -ErrorAction SilentlyContinue
 
-Invoke-Checked ".\node_modules\.bin\electron-builder.cmd" @("--windows", "nsis:ia32")
+# nsis  … インストーラ
+# zip   … インストール不要版（インストール権限が無い環境向け）
+Invoke-Checked ".\node_modules\.bin\electron-builder.cmd" @("--windows", "nsis:ia32", "zip:ia32")
 
 Get-ChildItem dist -File -Filter *.exe |
     Select-Object Name, @{n = 'MB'; e = { [math]::Round($_.Length / 1MB, 1) } } |

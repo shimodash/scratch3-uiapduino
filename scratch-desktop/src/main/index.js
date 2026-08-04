@@ -9,7 +9,22 @@ import {getFilterForExtension} from './FileFilters';
 import telemetry from './ScratchDesktopTelemetry';
 import MacOSMenu from './MacOSMenu';
 import log from '../common/log.js';
-import {productName, version} from '../../package.json';
+import {version} from '../../package.json';
+
+/**
+ * このビルドの表示名。
+ *
+ * 上流の package.json は productName が "Scratch" で、公式 Scratch Desktop と同じ。
+ * そのまま使うとウィンドウタイトルもユーザデータの保存先も公式と区別がつかない。
+ * build-scratch3-uiapduino.ps1 が electron-builder.yaml の productName / appId も
+ * 同じ名前に差し替えるので、インストール先とスタートメニューも分かれる。
+ * @type {string}
+ */
+const APP_NAME = 'Scratch UIAPduino';
+
+// ユーザデータの保存先を公式と分ける。
+// app.getPath('userData') より前に呼ぶ必要がある。
+app.setName(APP_NAME);
 
 // suppress deprecation warning; this will be the default in Electron 9
 app.allowRendererProcessReuse = true;
@@ -316,7 +331,7 @@ const createAboutWindow = () => {
         height: 400,
         parent: _windows.main,
         search: 'route=about',
-        title: `About ${productName}`
+        title: `About ${APP_NAME}`
     });
     return window;
 };
@@ -327,7 +342,7 @@ const createPrivacyWindow = () => {
         height: _windows.main.height * 0.8,
         parent: _windows.main,
         search: 'route=privacy',
-        title: `${productName} Privacy Policy`
+        title: `${APP_NAME} Privacy Policy`
     });
     return window;
 };
@@ -344,7 +359,7 @@ const createMainWindow = () => {
     const window = createWindow({
         width: defaultSize.width,
         height: defaultSize.height,
-        title: `${productName} ${version}` // something like "Scratch 3.14"
+        title: `${APP_NAME} ${version}` // something like "Scratch 3.14"
     });
     const webContents = window.webContents;
 
@@ -415,7 +430,7 @@ const createMainWindow = () => {
 
     webContents.on('will-prevent-unload', ev => {
         const choice = dialog.showMessageBoxSync(window, {
-            title: productName,
+            title: APP_NAME,
             type: 'question',
             message: 'Leave Scratch?',
             detail: 'Any unsaved changes will be lost.',

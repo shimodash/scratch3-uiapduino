@@ -452,13 +452,44 @@ curl -o build-scratch3-uiapduino.ps1 https://raw.githubusercontent.com/tarosay/s
 成果物:
 
 ```
-scratch-desktop/dist/Scratch 3.29.1 Setup.exe         … インストーラ (約 163 MB)
-scratch-desktop/dist/win-ia32-unpacked/Scratch 3.exe  … インストール不要 (約 116 MB)
+scratch-desktop/dist/
+  Scratch-UIAPduino-3.29.1-Setup.exe        … インストーラ (約 163 MB)
+  win-ia32-unpacked/                        … インストール不要版 (約 341 MB)
+    Scratch UIAPduino.exe
+    resources/  locales/  *.dll  ...
 ```
 
 ディレクトリ名は `win-unpacked` ではなく **`win-ia32-unpacked`** です。
 ビルドスクリプトが `nsis:ia32` を指定しているため、
 electron-builder がアーキテクチャ名付きのディレクトリを作ります。
+
+**インストール不要版は `.exe` 単体では動きません。**
+`Scratch UIAPduino.exe` は Electron の実行ファイルで、
+アプリ本体は `resources/app.asar` にあります。
+Chromium の DLL や言語ファイルも必要なので、フォルダごと扱ってください。
+
+### 公式 Scratch Desktop との共存
+
+上流の `electron-builder.yaml` は `appId` も `productName` も公式と同じです。
+そのままビルドすると、公式 Scratch Desktop を入れている人が
+インストールしたときに**同じアプリとみなされて上書きされます。**
+
+ビルドスクリプトが clone 後に以下を差し替えて、共存できるようにしています。
+
+| | 上流 | このビルド |
+|---|---|---|
+| `appId` | `edu.mit.scratch.scratch-desktop` | `jp.uiap.scratch-uiapduino` |
+| `productName` | `Scratch 3` | `Scratch UIAPduino` |
+| `nsis.artifactName` | `Scratch ${version} Setup.${ext}` | `Scratch-UIAPduino-${version}-Setup.${ext}` |
+
+`artifactName` は `productName` を参照せず `Scratch` が直書きされているため、
+ここも変えないとインストーラのファイル名が変わりません。
+
+さらに `scratch-desktop/src/main/index.js` で `app.setName()` を呼び、
+ユーザデータの保存先を `%APPDATA%\Scratch UIAPduino` に分けています。
+これが無いと公式と同じ `%APPDATA%\Scratch` を共有します。
+
+`version` は上流の `3.29.1` のままです。土台にした scratch-desktop の版を表します。
 
 ### 動作確認済み環境
 
