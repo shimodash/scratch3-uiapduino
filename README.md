@@ -422,30 +422,35 @@ npm v7 以降は peerDependencies が厳格なため `react-responsive@5.x` が
   ビルドスクリプトは `electron-builder` を直接呼んで NSIS だけを作ります。
 - **PowerShell の文字コード**: 日本語コメントを含む `.ps1` は **UTF-8 BOM 付き**で
   保存してください。BOM が無いと PowerShell 5.1 が cp932 として読み、構文エラーになります。
-- **コア数の多い機械で `npm run compile` が落ちる**: 92% の Terser で
+- **コア数の多い機械での Terser クラッシュ**（ビルドスクリプトが対処済み）:
+  素の状態では 92% の Terser で
   `spawn UNKNOWN` / `node_platform.cc:61: Assertion (0) == (uv_thread_create(...)) failed`
-  になる場合があります。electron-webpack の `out/targets/BaseTarget.js` が
+  となってビルドが落ちます。原因は electron-webpack の `out/targets/BaseTarget.js` で
 
   ```js
   if (configurator.env.minify !== false) { optimization.minimizer = [...]; }
   optimization.minimize = true;   // ← 条件の外
   ```
 
-  となっており、`compile` が渡している `--env.minify=false` が効かず、
-  webpack 4 の既定 minimizer（TerserPlugin, `parallel: true`）が動きます。
-  `parallel: true` は `os.cpus().length - 1` 個のワーカープロセスを起こすため、
+  となっているため、`compile` が渡している `--env.minify=false` が効かず、
+  webpack 4 の既定 minimizer（TerserPlugin, `parallel: true`）が動くことです。
+  `parallel: true` は `os.cpus().length - 1` 個のワーカープロセスを起こすので、
   64 コアなら 63 プロセスとなりスレッド生成に失敗します。
 
-  `scratch-desktop/webpack.makeConfig.js` の `merge.smart` に以下を足すと通ります。
-  既定と同じ設定のまま並列数だけを絞るので、成果物は変わりません。
+  `build-scratch3-uiapduino.ps1` が clone 後に
+  `scratch-desktop/webpack.makeConfig.js` へ以下を挿入して回避します。
+  `cache` / `sourceMap` は webpack 4 の既定と同じ値なので、**成果物は変わりません。**
 
   ```js
-  const TerserPlugin = require('terser-webpack-plugin');
-  // ...
-  optimization: {
-      minimizer: [new TerserPlugin({cache: true, parallel: 4, sourceMap: true})]
-  },
+  config.optimization = Object.assign({}, config.optimization, {
+      minimizer: [new (require('terser-webpack-plugin'))({
+          cache: true, parallel: 4, sourceMap: true
+      })]
+  });
   ```
+
+  パッチは冪等で、挿入位置が見つからない場合はビルドを中断します
+  （上流が変わったことに気づかず素通りしないため）。
 
 ---
 

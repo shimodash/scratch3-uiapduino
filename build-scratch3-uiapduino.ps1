@@ -106,6 +106,55 @@ Get-ChildItem -Path ".\scratch3-uiapduino" -Force |
 
 Remove-Item -Recurse -Force ".\scratch3-uiapduino"
 
+# --- Terser のワーカー数を制限する ---
+#
+# electron-webpack の out/targets/BaseTarget.js が
+#     if (env.minify !== false) { optimization.minimizer = [new TerserPlugin({parallel: true, ...})]; }
+#     optimization.minimize = true;   // ← 条件の外にある
+# となっており、scratch-desktop の compile が渡している --env.minify=false が効かない。
+# その結果 webpack 4 の既定 minimizer (TerserPlugin, parallel: true) が使われ、
+# os.cpus().length - 1 個のワーカープロセスを起こそうとする。
+# コア数の多い機械ではスレッド生成に失敗し、92% の Terser で
+#     spawn UNKNOWN
+#     node_platform.cc:61: Assertion `(0) == (uv_thread_create(...))' failed
+# となってビルドが落ちる (64 コアなら 63 プロセス)。
+#
+# 既定と同じ設定のまま parallel だけを絞るので、成果物は変わらない。
+# cache / sourceMap の値は webpack 4 の WebpackOptionsDefaulter.js の既定に合わせてある。
+
+$makeConfigPath = "scratch-desktop\webpack.makeConfig.js"
+$makeConfigSrc = Get-Content $makeConfigPath -Raw
+
+if ($makeConfigSrc -match 'parallel: 4') {
+    Write-Host ">>> webpack.makeConfig.js: Terser パッチは適用済み" -ForegroundColor DarkGray
+} else {
+    $anchor = "    return config;"
+    $hits = ([regex]::Matches($makeConfigSrc, [regex]::Escape($anchor))).Count
+    if ($hits -ne 1) {
+        throw "webpack.makeConfig.js のパッチ位置が特定できません (該当 $hits 箇所)。上流の変更を確認してください。"
+    }
+
+    $inject = @'
+    // Terser のワーカー数を制限する (多コア環境でのビルド失敗対策)
+    // build-scratch3-uiapduino.ps1 が挿入している。理由はそちらのコメントを参照。
+    config.optimization = Object.assign({}, config.optimization, {
+        minimizer: [new (require('terser-webpack-plugin'))({
+            cache: true,
+            parallel: 4,
+            sourceMap: true
+        })]
+    });
+
+    return config;
+'@
+    # このスクリプトは CRLF 保存なので、挿入する JS 側は LF に揃える
+    $inject = $inject -replace "`r`n", "`n"
+
+    $makeConfigSrc = $makeConfigSrc.Replace($anchor, $inject)
+    Set-Content -Path $makeConfigPath -Value $makeConfigSrc -NoNewline
+    Write-Host ">>> webpack.makeConfig.js: Terser のワーカー数を 4 に制限しました" -ForegroundColor Cyan
+}
+
 # --- ビルド (Electron) ---
 Push-Location scratch-desktop
 Invoke-Checked "npm.cmd" @("run", "fetch")
