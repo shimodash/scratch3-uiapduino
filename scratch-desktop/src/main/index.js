@@ -125,6 +125,50 @@ const isUiapduino = device => (
     device.productId === UIAPDUINO_PRODUCT_ID
 );
 
+/**
+ * WebHID の設定を済ませた session を記録する。
+ *
+ * createWindow は main / about / privacy の 3 つで呼ばれ、いずれも既定 session を共有する。
+ * setXxxHandler は上書きなので何度呼んでも無害だが、'select-hid-device' は on() なので
+ * リスナが積み上がり、1 回のイベントで callback が 3 回呼ばれて
+ * "One-time callback was called more than once" で main プロセスが落ちる。
+ */
+const webHidConfiguredSessions = new WeakSet();
+
+/**
+ * session に WebHID (UIAPduino) の許可設定を入れる。同じ session には一度だけ。
+ *
+ * これらを設定しないと、Electron は既定で HID デバイスをレンダラに一切見せない。
+ *
+ * @param {Session} session - 対象の session
+ * @returns {void}
+ */
+const setupWebHid = session => {
+    if (webHidConfiguredSessions.has(session)) return;
+    webHidConfiguredSessions.add(session);
+
+    // getDevices() や open() の際に呼ばれる。UIAPduino だけを許可する。
+    // これが true を返すことで、requestDevice() を一度も呼んでいないデバイスも
+    // getDevices() で見えるようになる (= ユーザ操作なしで接続できる)。
+    session.setDevicePermissionHandler(details => (
+        details.deviceType === 'hid' && isUiapduino(details.device)
+    ));
+
+    // requestDevice() 実行時にデバイス選択ダイアログの代わりに呼ばれる。
+    // Electron はネイティブのピッカーを出さないため、ここで選ばないと必ず空で返る。
+    // UIAPduino が1台だけ繋がっている前提で自動選択する。
+    session.on('select-hid-device', (event, details, callback) => {
+        event.preventDefault();
+        const device = details.deviceList.find(isUiapduino);
+        if (device) {
+            callback(device.deviceId);
+        } else {
+            // 引数なしで呼ぶとリクエストのキャンセルになる (Electron のドキュメントどおり)
+            callback();
+        }
+    });
+};
+
 const handlePermissionRequest = async (webContents, permission, callback, details) => {
     if (webContents !== _windows.main.webContents) {
         // deny: request came from somewhere other than the main window's web contents
@@ -136,8 +180,11 @@ const handlePermissionRequest = async (webContents, permission, callback, detail
     }
     if (permission === 'hid') {
         // allow: WebHID for the UIAPduino extension.
-        // 実際にどのデバイスを渡すかは setDevicePermissionHandler と
-        // 'select-hid-device' 側で VID/PID により絞り込む。
+        //
+        // NOTE: Electron 15 では 'hid' は setPermissionRequestHandler の許可種別に含まれず、
+        //       setPermissionCheckHandler 側の種別なので、この分岐は通常呼ばれない。
+        //       実際の許可は下の handlePermissionCheck が行う。
+        //       将来 Electron 側の扱いが変わった場合に備えて残してある。
         return callback(true);
     }
     if (permission !== 'media') {
@@ -182,6 +229,39 @@ const handlePermissionRequest = async (webContents, permission, callback, detail
     return callback(true);
 };
 
+/**
+ * パーミッションの「チェック」に応答する。
+ *
+ * Electron 15 では navigator.hid へのアクセス可否はこちら ('hid') で決まる。
+ * setPermissionRequestHandler の許可種別に 'hid' は無い。
+ *
+ * WARNING: このハンドラを設定すると、すべてのパーミッションチェックの既定動作を奪う。
+ *          Electron はハンドラ未設定のとき CheckPermissionWithDetails で true を返すので、
+ *          'hid' 以外は true を返して既定に合わせないと既存機能を壊す。
+ *
+ * @param {WebContents|null} webContents - チェック元。クロスオリジンの子フレームでは null
+ * @param {string} permission - 'hid' など
+ * @param {string} requestingOrigin - チェック元のオリジン
+ * @param {object} details - isMainFrame などが入る
+ * @returns {boolean} 許可するなら true
+ */
+const handlePermissionCheck = (webContents, permission, requestingOrigin, details) => {
+    if (permission !== 'hid') {
+        // ハンドラ未設定時の Electron の既定に合わせる
+        return true;
+    }
+    if (!_windows.main || webContents !== _windows.main.webContents) {
+        // deny: 本体ウィンドウ以外からの WebHID
+        return false;
+    }
+    if (!details || !details.isMainFrame) {
+        // deny: 子フレームからの WebHID
+        return false;
+    }
+    // allow: 実際にどのデバイスを渡すかは setDevicePermissionHandler が VID/PID で絞る
+    return true;
+};
+
 const createWindow = ({search = null, url = 'index.html', ...browserWindowOptions}) => {
     const window = new BrowserWindow({
         useContentSize: true,
@@ -195,24 +275,12 @@ const createWindow = ({search = null, url = 'index.html', ...browserWindowOption
     const webContents = window.webContents;
 
     webContents.session.setPermissionRequestHandler(handlePermissionRequest);
+    webContents.session.setPermissionCheckHandler(handlePermissionCheck);
 
     // --- WebHID (UIAPduino) ---------------------------------------------
     // navigator.hid.getDevices() / requestDevice() が UIAPduino を返せるようにする。
-    // これらを設定しないと、Electron は既定で HID デバイスを一切見せない。
-
-    // getDevices() や open() の際に呼ばれる。UIAPduino だけを許可する。
-    webContents.session.setDevicePermissionHandler(details => (
-        details.deviceType === 'hid' && isUiapduino(details.device)
-    ));
-
-    // requestDevice() 実行時にデバイス選択ダイアログの代わりに呼ばれる。
-    // Electron はネイティブのピッカーを出さないため、ここで選ばないと必ず空で返る。
-    // UIAPduino が1台だけ繋がっている前提で自動選択する。
-    webContents.session.on('select-hid-device', (event, details, callback) => {
-        event.preventDefault();
-        const device = details.deviceList.find(isUiapduino);
-        callback(device ? device.deviceId : null);
-    });
+    // 3 つのウィンドウが同じ session を共有するので、設定は一度だけ行う。
+    setupWebHid(webContents.session);
 
     webContents.on('before-input-event', (event, input) => {
         if (input.code === devToolKey.code &&

@@ -10,38 +10,69 @@ clone した上に、このリポジトリのファイルを被せてビルド�
 
 ## 🚧 現在の状態
 
-**骨組みのみ。実機での動作は未検証です。**
+**Scratch から実機の LED を点灯するところまで確認済みです。**
 
 | 項目 | 状態 |
 |---|---|
-| ブロック定義 | 仮のブロックセット（汎用 Arduino 相当） |
-| WebHID 通信層 | 実装済み・**未検証** |
-| コマンドプロトコル | **仮。UIAPduino 側の小型 VM と要すり合わせ** |
-| アイコン | プレースホルダ（青地に "U"） |
+| ブロック定義 | 汎用 Arduino 相当。**全ブロック実機確認済み** |
+| WebHID 通信層 | **実機で確認済み**（接続・切断・再接続・入出力） |
+| コマンドプロトコル | uiap-hid-web と同じ `0x52` 方式に統一済み |
+| デバイス側スケッチ | `sketches/ScratchUiapduino/` にあり・**実機で全コマンド確認済み** |
+| ビルド | Windows で通過。インストーラ生成まで確認済み |
+| アイコン | 差し替え済み（カード 600x372 / 小アイコン 80x80） |
 | ビルドスクリプト | scratch3-tello の実績あるものを流用 |
+
+**全ブロックを実機で確認済みです。** そのほか以下も確認しています。
+
+- 「つなぐ」がユーザ操作なしで `true` を返す
+- USB を抜くと「つながっている」が false になり、挿し直して「つなぐ」で復帰する
+- デバイスが無い状態で「つなぐ」を繰り返しても落ちず `false` を返す
 
 ---
 
 ## 📐 構成
 
-```
-scratch-vm/src/
-  extension-support/extension-manager.js      … uiapduino を builtinExtensions に登録
-  extensions/scratch3_uiapduino/
-    index.js                                   … ブロック定義（通信を知らない）
-    uiapduinoProcessor.js                      … WebHID 通信 + コマンドキュー
+このリポジトリのファイルは 2 種類に分かれます。**どちらなのかで扱いが変わります。**
 
-scratch-gui/src/lib/libraries/extensions/
-  index.jsx                                    … 拡張機能ライブラリに UIAPduino を追加
-  uiapduino/{uiapduino.png, uiapduino-small.png}
+### 🆕 新規ファイル（すべて tarosay のオリジナル）
 
-scratch-desktop/src/
-  main/index.js                                … WebHID の許可設定（後述）
-```
+上流には存在しないファイルです。オーバーレイ時に新規追加されます。
+
+| ファイル | 内容 |
+|---|---|
+| `scratch-vm/src/extensions/scratch3_uiapduino/index.js` | ブロック定義。通信方式を一切知らない |
+| `scratch-vm/src/extensions/scratch3_uiapduino/uiapduinoProcessor.js` | WebHID 通信 + コマンドキュー |
+| `scratch-gui/src/lib/libraries/extensions/uiapduino/uiapduino.png` | 拡張機能ライブラリのカード画像 (600x372) |
+| `scratch-gui/src/lib/libraries/extensions/uiapduino/uiapduino-small.png` | 小アイコン (80x80) |
+| `sketches/ScratchUiapduino/ScratchUiapduino.ino` | デバイス側スケッチ |
+| `build-scratch3-uiapduino.ps1` | ビルドスクリプト |
+| `README.md` / `LICENSE` | このファイルとライセンス |
 
 `index.js` と `uiapduinoProcessor.js` の分離は Tello 拡張と同じで、
 ブロック層は通信方式を一切知りません。プロトコルを変える場合も
 `uiapduinoProcessor.js` だけを直せば済みます。
+
+`ScratchUiapduino.ino` はデバイス側で動くもので、**Scratch のビルドには含まれません。**
+Arduino IDE から別途 UIAPduino に書き込みます。
+
+### ✏️ 上流ファイルへのパッチ（Scratch Foundation / MIT のコードを改変）
+
+**上流のファイルを丸ごと上書きします。** 上流が更新されたら追従が必要です。
+
+| ファイル | 変更点 |
+|---|---|
+| `scratch-vm/src/extension-support/extension-manager.js` | `builtinExtensions` に `uiapduino` を 1 行追加 |
+| `scratch-gui/src/lib/libraries/extensions/index.jsx` | 拡張機能ライブラリの配列に UIAPduino の項目を追加 |
+| `scratch-desktop/src/main/index.js` | WebHID の許可設定を追加（後述） |
+
+上流のどのバージョンに対するパッチかは `build-scratch3-uiapduino.ps1` の
+clone 時のタグで固定されています。
+
+| 上流 | タグ |
+|---|---|
+| scratch-vm | `0.2.0-prerelease.20220222132735` |
+| scratch-gui | `scratch-desktop-v3.29.0` |
+| scratch-desktop | `v3.29.1` |
 
 ---
 
@@ -64,7 +95,11 @@ Usage Page がベンダー定義であることが重要です。キーボード
 | 方向 | 種別 | サイズ |
 |---|---|---|
 | Scratch → UIAPduino | Feature Report (EP0) | 32 バイト |
-| UIAPduino → Scratch | Input Report (EP3 IN) | 8 バイト |
+| UIAPduino → Scratch | Input Report (EP1 IN) | 8 バイト |
+
+Input Report のエンドポイントは USB 設定によって変わります
+（`WebHID Only` は EP1、`Keyboard+Mouse+WebHID` は EP3）。
+ホスト側からは見えないので Scratch 側の実装には影響しません。
 
 Feature Report は `arduino_core_ch32` v1.1.5 以降で 16 → 32 バイトに拡張されました。
 実サイズは接続時に HID ディスクリプタから自動取得します。
@@ -74,63 +109,272 @@ Feature Report は `arduino_core_ch32` v1.1.5 以降で 16 → 32 バイトに�
 Electron は既定で HID デバイスをレンダラに一切見せません。
 `scratch-desktop/src/main/index.js` に以下を追加してあります。
 
-- `setPermissionRequestHandler` … `'hid'` を許可（上流は `'media'` 以外すべて拒否）
+- `setPermissionCheckHandler` … `'hid'` を許可。**実際に効いているのはこれ**
 - `setDevicePermissionHandler` … VID/PID が一致するデバイスだけ許可
 - `'select-hid-device'` … Electron はネイティブのデバイス選択ダイアログを出さないため、
   ここで自動選択しないと `requestDevice()` は必ず空で返る
 
 Electron 15.3.1 にこれらの API が存在することは確認済みです。
 
-### ⚠ 最初に検証すべき点
+### ⚠ ハンドラは 1 つの session に一度だけ登録すること
+
+`createWindow` は **main / about / privacy の 3 つのウィンドウで呼ばれ、
+いずれも既定 session を共有します。**
+
+`setXxxHandler` 系は上書きなので何度呼んでも無害ですが、
+`'select-hid-device'` は `on()` なのでリスナが積み上がります。
+3 つ登録された状態でイベントが起きると `callback` が 3 回呼ばれ、
+
+```
+A JavaScript error occurred in the main process
+TypeError: One-time callback was called more than once
+```
+
+で main プロセスが落ちます。`setupWebHid()` が `WeakSet` で二重登録を防いでいます。
+
+**この不具合はデバイスが繋がっていないときにしか出ません。**
+`connect()` は先に `getDevices()` を試すので、デバイスがあれば
+`requestDevice()` に到達せず `'select-hid-device'` も発火しないためです。
+
+デバイスが見つからないときは `callback()` を**引数なし**で呼びます。
+Electron のドキュメントどおりで、これがリクエストのキャンセルになります
+（`deviceId` の型は `String` なので `callback(null)` は仕様外）。
+
+### ✅ ユーザ操作なしの接続について（検証済み）
 
 `navigator.hid.requestDevice()` は Chromium 側で**ユーザ操作（実際のクリック）**を要求します。
-Scratch のブロック実行は VM のループから呼ばれるためユーザ操作とはみなされず、
-「つなぐ」ブロックから `requestDevice()` を呼ぶと失敗する可能性があります。
+Scratch のブロック実行は VM のループから呼ばれるためユーザ操作とはみなされないので、
+「つなぐ」ブロックから `requestDevice()` を呼んでも失敗するのではないか、というのが
+当初いちばん危惧していた点でした。
 
-`uiapduinoProcessor.connect()` は先に `getDevices()` を試すので、
-`setDevicePermissionHandler` が効いていればユーザ操作なしで取得できる想定です。
-**この挙動を最初に実機で確認してください。** 駄目な場合は、
-Scratch のペリフェラル接続モーダル（実際のクリックが発生する）から接続する方式に変更します。
+**実機で確認した結果、問題ありませんでした。**
+`uiapduinoProcessor.connect()` は先に `getDevices()` を試します。
+`setDevicePermissionHandler` が true を返していれば、Electron は
+`requestDevice()` を一度も呼んでいないデバイスも `getDevices()` で返すため、
+ユーザ操作なしに接続できます。「つなぐ」ブロックは `true` を返します。
+
+したがって、Scratch のペリフェラル接続モーダル経由に作り替える必要はありません。
+
+なお uiap-hid-web は全ページ `requestDevice()` のみで `getDevices()` を使っていないため、
+この経路はサイト側では一度も踏まれていません。この拡張が初めて通した経路です。
+
+### USB を抜いたとき
+
+**WebHID では物理的に切断されても `HIDDevice.opened` は自動的に false になりません。**
+`navigator.hid` の `disconnect` イベントを購読しないと、
+「つながっている」ブロックが true を返し続けます。
+さらに再接続時 Chromium は**新しい `HIDDevice` オブジェクト**を作るため、
+古いハンドルを握ったままだと挿し直しても送信が無視されます。
+
+`uiapduinoProcessor` は `disconnect` を購読し、自分が使っているデバイスなら
+接続状態を捨てて実行待ちのコマンドをすべて reject します。
+抜いた後は「つながっている」が false になるので、
+**挿し直したら「つなぐ」ブロックをもう一度実行してください。**
+自動再接続はしません。
+
+### ⚠ 権限ハンドラの注意点
+
+Electron 15 では `'hid'` は `setPermissionRequestHandler` の許可種別に**含まれません**。
+`setPermissionCheckHandler` 側の種別です。
+
+さらに `setPermissionCheckHandler` を設定すると、**すべてのパーミッションチェックの
+既定動作を奪います。** Electron はハンドラ未設定のとき `CheckPermissionWithDetails` で
+`true` を返すため、`'hid'` 以外で `false` を返すとカメラ・マイクなど既存機能が壊れます。
+`scratch-desktop/src/main/index.js` の `handlePermissionCheck` は
+`'hid'` 以外で `true` を返して既定に合わせています。
 
 ---
 
-## 📡 コマンドプロトコル（仮）
+## 📡 コマンドプロトコル
 
-Tello の「コマンドを送る → `ok` を待つ → 次を送る」と同じ契約です。
-UIAPduino 側の小型 VM は、届いたコマンドを実行して ACK を返すだけで済みます。
+Tello の「コマンドを送る → 応答を待つ → 次を送る」と同じ契約です。
+
+ワイヤフォーマットは **独自定義ではなく、[uiap-hid-web](https://github.com/tarosay/uiap-hid-web) の
+`uiapruby.html` が実機に対して使っているものと同一**です。デバイス側ライブラリ
+（`Hid.h`）が既に持っている契約なので、既存スケッチ資産と同じ経路で動きます。
 
 ### Scratch → UIAPduino（Feature Report / 32 バイト）
 
 | バイト | 内容 |
 |---|---|
 | 0 | コマンド ID |
-| 1 | シーケンス番号（1..255） |
-| 2.. | パラメータ |
+| 1.. | パラメータ |
 
 ### UIAPduino → Scratch（Input Report / 8 バイト）
 
+先頭バイトがマーカーです。コマンド応答のほかに、コンソール出力とログが非同期に届きます。
+
+| マーカー | 用途 |
+|---|---|
+| `0x52` | コマンド応答 |
+| `0x50` | コンソール出力（`hid.Print` / `hid.Println`） |
+| `0x44` | デバイスログ |
+
+コマンド応答（`0x52`）の中身:
+
 | バイト | 内容 |
 |---|---|
-| 0 | 応答種別（`0x80` = ACK） |
-| 1 | シーケンス番号（受け取ったコマンドのエコー） |
-| 2 | ステータス（0 = 正常、それ以外 = エラー） |
-| 3–4 | 戻り値（リトルエンディアン 16bit） |
-| 5–7 | 予約 |
+| 0 | `0x52` |
+| 1 | ステータス（`0`=OK / `1`=ERR / `2`=DATA / `3`=END） |
+| 2 | ペイロード長（0–5） |
+| 3–7 | ペイロード |
 
-### コマンド ID（仮）
+戻り値のないコマンドは `OK` だけを返します。戻り値のあるコマンドは
+`DATA` を必要な回数繰り返してから `END` で終端します（`stream_bytes()` と同じ）。
+数値はリトルエンディアンです。
 
-| ID | 名前 | パラメータ | 戻り値 |
+### コマンド ID
+
+`0x01` は `Hid.h` の接続通知で予約済み、`0x01`–`0x11` は uiapruby の SD ファイル操作と
+RUN/STOP が使用中のため、Scratch 拡張は衝突しない `0x20` 以降を使います。
+これにより、将来 1 つのスケッチに UIAPruby VM と Scratch 対応を同居させられます。
+
+| ID | 名前 | パラメータ | 応答 |
 |---|---|---|---|
-| `0x01` | PING | なし | なし |
-| `0x10` | PIN_MODE | pin, mode | なし |
-| `0x11` | DIGITAL_WRITE | pin, value | なし |
-| `0x12` | DIGITAL_READ | pin | 0 / 1 |
-| `0x13` | ANALOG_WRITE | pin, value | なし |
-| `0x14` | ANALOG_READ | pin | 読み取り値 |
+| `0x01` | （接続通知・予約） | なし | なし |
+| `0x20` | PING | なし | OK |
+| `0x21` | PIN_MODE | pin, mode | OK |
+| `0x22` | DIGITAL_WRITE | pin, value | OK |
+| `0x23` | DIGITAL_READ | pin | DATA(1) → END |
+| `0x24` | ANALOG_WRITE | pin, value | OK |
+| `0x25` | ANALOG_READ | pin | DATA(2) → END |
 
-シーケンス番号で ACK を対応付けているので、タイムアウト後に遅れて届いた応答を
-取り違えません。ブロックは Promise を返すため、Scratch はデバイスの実行完了を
-待ってから次のブロックに進みます（ロックステップ動作）。
+接続時には `uiapduinoProcessor.connect()` が接続通知（`0x01`）を送ります。
+デバイス側が `WaitAvailable()` で待っている場合、これが無いと起動しません。
+
+ブロックは Promise を返すため、Scratch はデバイスの実行完了を待ってから
+次のブロックに進みます（ロックステップ動作）。
+
+### ⚠ シーケンス番号がないことによる制約
+
+このワイヤフォーマットには送受を対応付ける番号がありません。
+タイムアウト後に遅れて届いた応答は、次のコマンドの応答と区別できません。
+
+`uiapduinoProcessor` は「待ち手がいない応答は捨てる」ことしかできないため、
+タイムアウトが起きた時点で警告を出し、`desyncSuspected` を立てます。
+この状態になったら「実行待ちのコマンドをクリアする」ブロックか再接続で復帰してください。
+
+---
+
+## 🔧 デバイス側スケッチ
+
+`sketches/ScratchUiapduino/ScratchUiapduino.ino`
+
+### 書き込み設定
+
+| Tools | 値 |
+|---|---|
+| Board | HID ProMicro CH32V003 |
+| Board Version | V1.4 |
+| USB | **WebHID Only** |
+| PWM | **TIM2 Default (pin 2 / PC0)** |
+| Optimize | Smallest (-Os) with LTO |
+
+PWM の設定を間違えると `PWMMIN_REQUIRE_DEFAULT()` がコンパイル時に止めます。
+
+`Keyboard+Mouse+WebHID` でも動きますが、この拡張はキーボード／マウスを使いません。
+`WebHID Only` ならインタフェースが 1 つだけになるため、
+Scratch 側の `getDevices()` が同じ VID/PID のキーボードコレクションを拾う余地がなくなります。
+
+ホストから見える形は両設定で同一です（エンドポイント番号だけが EP3 → EP1 に変わりますが、
+これはホスト側からは見えません）。したがって Scratch 側は無変更で動きます。
+
+| | Keyboard+Mouse+WebHID | WebHID Only |
+|---|---|---|
+| VID / PID | `0x1209` / `0xD004` | 同じ |
+| Usage Page / Usage | `0xFF00` / `0x01` | 同じ |
+| Input Report | 8 バイト | 同じ |
+| Feature Report | 32 バイト | 同じ |
+| エンドポイント | EP3 IN | EP1 IN |
+| インタフェース数 | 3 | 1 |
+| Flash | 7404 / 16384 (45%) | **7108 / 16384 (43%)** |
+| RAM | 528 / 2048 (25%) | **448 / 2048 (21%)** |
+
+### ⚠ 使ってはいけないピン
+
+CH32V003 では以下が潰せないピンです。スケッチ側で弾いて `RSP_ERR` を返します。
+
+| ピン | 用途 |
+|---|---|
+| D13 (= A4) | USB D+ |
+| D14 (= A7) | USB D− |
+| D17 | RESET |
+
+**D13 / D14 に触ると USB が落ちて Scratch との接続が切れます。**
+オンボード LED は **D2** です。
+
+`analogRead` は Arduino 標準どおり**アナログ番号 (A0–A7)** 解釈で、デジタルピン番号ではありません。
+
+| A 番号 | 実ピン |
+|---|---|
+| A0 | PA2 (D1) |
+| A1 | PA1 (D0) |
+| A2 | PC4 (D6) |
+| A3 | PD2 (D12) |
+| A5 | PD5 (D15) |
+| A6 | PD6 (D16) |
+
+### ⚠ PWM は `analogWrite()` を使いません
+
+**CH32V003 で `analogWrite()` を使ってはいけません。**
+[arduino_core_ch32 の README](https://github.com/tarosay/arduino_core_ch32) に明記されています。
+
+`analogWrite()` は `HardwareTimer` を丸ごと引き込むため 16KB Flash には重すぎる上に、
+Scratch のブロックが普通にやってしまう操作で壊れます。
+
+| 症状 | Scratch でいつ起きるか |
+|---|---|
+| TIM1 と TIM2 の両方に `analogWrite()` すると**無言でフリーズ** | 別々のピンに PWM を出しただけ |
+| `analogWrite()` → `pinMode()` → `analogWrite()` の往復で**RAM が減り続ける** | ループの中で PWM とピン設定を往復しただけ |
+
+このスケッチは `PWMmin` の `Pwm_write()` を使います。動的確保をしないのでどちらも起きません。
+
+PWM を出せるピンは **Tools → PWM の設定で変わります**。`TIM2 Default` の場合:
+
+| タイマー | ピン |
+|---|---|
+| TIM1 | D0 / D5 / D6 / D12 |
+| TIM2 | **D2**（オンボード LED） |
+
+`Remap3` にすると TIM2 が D3 / D9 / D15 / D16 に変わります。
+PWM 非対応ピンに `analogWrite` ブロックを使った場合、
+黙ってデジタル出力にフォールバックせず `RSP_ERR` を返します。
+
+「ピンを入力／出力にする」ブロック（`PIN_MODE`）は先に `Pwm_stop()` を呼ぶので、
+PWM 中のピンを普通の GPIO に戻せます。
+
+### 実機確認の記録
+
+`hid-console.html` から生バイトを送って確認したものです。
+
+| 送信 | 結果 |
+|---|---|
+| `20` | `52 00 00` — PING |
+| `21 02 01` | `52 00 00` — D2 を出力に。LED 消灯（出力ラッチが 0 のため。Arduino 標準の挙動） |
+| `22 02 01` / `22 02 00` | `52 00 00` — 全点灯 / 消灯 |
+| `23 02` | `52 02 01 ...` → `52 03 00 ...` を **100 回連続で取りこぼしなし** |
+| `24 02 80` | `52 00 00` — LED が半分の明るさに |
+| `24 09 80` | `52 01 00` — PWM 非対応ピンを正しく拒否 |
+| `25 00`（3.3V） | `0x3FF` = 1023 |
+| `25 00`（GND） | 1〜2（ADC ノイズフロア） |
+
+`0x3FF` が返ることで、`DATA(2)` のリトルエンディアン 16bit が
+上位バイトまで届いていることが確認できます（下位だけなら 255 で頭打ちになる）。
+
+`24 02 80` の直後に `21 02 01` → `22 02 01` で全点灯に変わることから、
+`PIN_MODE` の `Pwm_stop()` が PWM 中のピンを GPIO に戻せていることも確認済みです。
+
+### レポート消失対策
+
+`uiapwebhid_send` 内蔵の待ちだけでは、ホストのポーリングのばらつきで
+前のレポートが上書きされて消えることがあります（uiapruby の `consoleWriteChunk()` に同じ記述あり）。
+`DATA` → `END` の 2 レポートでこれが起きると `DATA` が消えて `END` だけが届き、
+**Scratch 側はセンサー値 0 を正常値として受け取ってしまいます。**
+
+- スケッチ側: 送信前に `WebHID.busy()` が下りるまで待つ
+- Scratch 側: `DATA` を伴わない `END` はエラーとして reject する
+
+の両方で塞いであります。
 
 ---
 
@@ -150,9 +394,13 @@ curl -o build-scratch3-uiapduino.ps1 https://raw.githubusercontent.com/tarosay/s
 成果物:
 
 ```
-scratch-desktop/dist/Scratch 3.29.1 Setup.exe    … インストーラ
-scratch-desktop/dist/win-unpacked/Scratch 3.exe  … インストール不要
+scratch-desktop/dist/Scratch 3.29.1 Setup.exe         … インストーラ (約 163 MB)
+scratch-desktop/dist/win-ia32-unpacked/Scratch 3.exe  … インストール不要 (約 116 MB)
 ```
+
+ディレクトリ名は `win-unpacked` ではなく **`win-ia32-unpacked`** です。
+ビルドスクリプトが `nsis:ia32` を指定しているため、
+electron-builder がアーキテクチャ名付きのディレクトリを作ります。
 
 ### 動作確認済み環境
 
@@ -174,6 +422,30 @@ npm v7 以降は peerDependencies が厳格なため `react-responsive@5.x` が
   ビルドスクリプトは `electron-builder` を直接呼んで NSIS だけを作ります。
 - **PowerShell の文字コード**: 日本語コメントを含む `.ps1` は **UTF-8 BOM 付き**で
   保存してください。BOM が無いと PowerShell 5.1 が cp932 として読み、構文エラーになります。
+- **コア数の多い機械で `npm run compile` が落ちる**: 92% の Terser で
+  `spawn UNKNOWN` / `node_platform.cc:61: Assertion (0) == (uv_thread_create(...)) failed`
+  になる場合があります。electron-webpack の `out/targets/BaseTarget.js` が
+
+  ```js
+  if (configurator.env.minify !== false) { optimization.minimizer = [...]; }
+  optimization.minimize = true;   // ← 条件の外
+  ```
+
+  となっており、`compile` が渡している `--env.minify=false` が効かず、
+  webpack 4 の既定 minimizer（TerserPlugin, `parallel: true`）が動きます。
+  `parallel: true` は `os.cpus().length - 1` 個のワーカープロセスを起こすため、
+  64 コアなら 63 プロセスとなりスレッド生成に失敗します。
+
+  `scratch-desktop/webpack.makeConfig.js` の `merge.smart` に以下を足すと通ります。
+  既定と同じ設定のまま並列数だけを絞るので、成果物は変わりません。
+
+  ```js
+  const TerserPlugin = require('terser-webpack-plugin');
+  // ...
+  optimization: {
+      minimizer: [new TerserPlugin({cache: true, parallel: 4, sourceMap: true})]
+  },
+  ```
 
 ---
 
@@ -192,4 +464,40 @@ npm v7 以降は peerDependencies が厳格なため `react-responsive@5.x` が
 
 ## License
 
-オリジナルの Scratch 各プロジェクトのライセンスに従います。`LICENSE` を参照してください。
+このリポジトリには**著作権者の異なるものが混在**しています。
+
+### tarosay の成果物
+
+ルートの [`LICENSE`](LICENSE)（BSD-3-Clause / Copyright (c) 2026, tarosay）が適用されます。
+対象は「🆕 新規ファイル」の表に挙げたものです。
+
+- `scratch-vm/src/extensions/scratch3_uiapduino/` 以下
+- `scratch-gui/src/lib/libraries/extensions/uiapduino/` 以下
+- `sketches/` 以下
+- `build-scratch3-uiapduino.ps1`
+- `README.md`
+
+### 上流 Scratch のコード
+
+「✏️ 上流ファイルへのパッチ」の 3 ファイルは、Scratch のコードを改変したものです。
+著作権は元の権利者に帰属し、それぞれの上流リポジトリのライセンスに従います。
+
+| 上流 | 著作権表示 |
+|---|---|
+| scratch-vm | Copyright (c) 2016, Massachusetts Institute of Technology |
+| scratch-gui | Copyright (c) 2016, Massachusetts Institute of Technology |
+| scratch-desktop | Copyright (c) 2019, Scratch Foundation |
+
+いずれも BSD-3-Clause です。**このリポジトリは上流の `LICENSE` ファイルを含みません。**
+オーバーレイ後も clone した各リポジトリの `LICENSE` がそのまま残り、
+上記の著作権表示が保持されます。
+
+### プロトコル仕様
+
+ワイヤフォーマットは [tarosay/uiap-hid-web](https://github.com/tarosay/uiap-hid-web) の
+`uiapruby.html` および `arduino_core_ch32` の `Hid` ライブラリが持つ既存の契約に合わせたものです。
+
+### ビルド成果物
+
+ビルドして得られる Scratch アプリには上流 Scratch のコードが大量に含まれます。
+**配布する場合は上流各プロジェクトのライセンス条項に従ってください。**
