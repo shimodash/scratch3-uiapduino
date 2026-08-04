@@ -1,4 +1,4 @@
-Copyright (c) 2019, Kanta Ebihara
+Copyright (c) 2026, tarosay
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
@@ -13,7 +13,8 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 
 
-This directory is containing original codes from scratchfoundation/scratch-vm and scratchfoundation/scratch-gui.
+This directory is containing original codes from scratchfoundation/scratch-vm,
+scratchfoundation/scratch-gui and scratchfoundation/scratch-desktop.
 These codes are licensed under the below license.
 
 Copyright (c) 2016, Massachusetts Institute of Technology
@@ -31,4 +32,11 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 
 # Modifications
-This project includes modifications by tarosay (2025).
+The following files are derived from the scratchfoundation projects above and
+have been modified by tarosay (2026):
+
+  scratch-vm/src/extension-support/extension-manager.js
+  scratch-gui/src/lib/libraries/extensions/index.jsx
+  scratch-desktop/src/main/index.js
+
+All other files in this repository are original works by tarosay.
