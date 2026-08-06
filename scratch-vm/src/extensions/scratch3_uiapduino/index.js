@@ -88,6 +88,26 @@ const message = {
         'ja-Hira': 'ピン [PIN] のあたい',
         en: 'analog pin [PIN] value'
     },
+    analogA0: {
+        ja: 'A0 の値',
+        'ja-Hira': 'A0 のあたい',
+        en: 'A0 value'
+    },
+    analogA1: {
+        ja: 'A1 の値',
+        'ja-Hira': 'A1 のあたい',
+        en: 'A1 value'
+    },
+    analogA2: {
+        ja: 'A2 の値',
+        'ja-Hira': 'A2 のあたい',
+        en: 'A2 value'
+    },
+    analogA3: {
+        ja: 'A3 の値',
+        'ja-Hira': 'A3 のあたい',
+        en: 'A3 value'
+    },
     clearQueue: {
         ja: '実行待ちのコマンドをクリアする',
         'ja-Hira': 'うごくのをまっているコマンドをなくす',
@@ -258,6 +278,32 @@ class Scratch3Uiapduino {
                             defaultValue: 0
                         }
                     }
+                },
+                '---',
+                // チャンネルごとに引数の無いレポーターを分けてある。
+                // scratch-vm は「引数が 1 つも無いレポーター」にだけ
+                // パレットのチェックボックス (checkboxInFlyout) を出すため、
+                // 引数付きの analogRead ではステージに値を出せない。
+                // ブロックを分ければ A0〜A3 を同時にステージ表示できる。
+                {
+                    opcode: 'analogA0',
+                    text: this._getText('analogA0'),
+                    blockType: BlockType.REPORTER
+                },
+                {
+                    opcode: 'analogA1',
+                    text: this._getText('analogA1'),
+                    blockType: BlockType.REPORTER
+                },
+                {
+                    opcode: 'analogA2',
+                    text: this._getText('analogA2'),
+                    blockType: BlockType.REPORTER
+                },
+                {
+                    opcode: 'analogA3',
+                    text: this._getText('analogA3'),
+                    blockType: BlockType.REPORTER
                 },
                 '---',
                 {
@@ -461,9 +507,40 @@ class Scratch3Uiapduino {
     }
 
     analogRead (args) {
+        return this._analogRead(Cast.toNumber(args.PIN));
+    }
+
+    /**
+     * アナログ入力を 1 チャンネル読む。
+     *
+     * ステージ表示 (モニター) にチェックが入っている間、Scratch は毎フレーム
+     * このブロックを実行しようとするが、前回のスレッドが Promise を待っている間は
+     * 再投入されない (runtime.addMonitorScript)。processor 側もキューで直列化するので、
+     * 実際には「応答が返ったら次を投げる」ペースに落ち着く。
+     *
+     * @param {number} channel - アナログ番号 (A0 なら 0)。デジタルピン番号ではない
+     * @returns {Promise<number>} 読み取り値。失敗したら 0
+     */
+    _analogRead (channel) {
         return this.processor
-            .request(CMD.ANALOG_READ, [Cast.toNumber(args.PIN)])
+            .request(CMD.ANALOG_READ, [channel])
             .catch(() => 0);
+    }
+
+    analogA0 () {
+        return this._analogRead(0);
+    }
+
+    analogA1 () {
+        return this._analogRead(1);
+    }
+
+    analogA2 () {
+        return this._analogRead(2);
+    }
+
+    analogA3 () {
+        return this._analogRead(3);
     }
 
     clearQueue () {
