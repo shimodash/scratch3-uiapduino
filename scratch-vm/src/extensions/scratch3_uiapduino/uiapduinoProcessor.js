@@ -54,8 +54,13 @@ const REPORT_ID = 0;
  *
  * sketches/ScratchUiapduino の PROTOCOL_VERSION と同じ値でなければならない。
  * 互換性の無い変更をしたら両方を上げること。
+ *
+ *   1 : ピン操作のみ
+ *   2 : キーボード / マウス / 非常停止を追加。USB 設定が Keyboard+Mouse+WebHID になった
+ *   3 : ダブルクリックとドラッグを追加
+ * @type {number}
  */
-const PROTOCOL_VERSION = 1;
+const PROTOCOL_VERSION = 3;
 
 /** ハンドシェイクの結果を表す特別な値 */
 const HANDSHAKE = {
@@ -115,7 +120,63 @@ const CMD = {
     /** アナログ出力 (PWM)。 [1]=pin [2]=value(0-255) */
     ANALOG_WRITE: 0x24,
     /** アナログ入力。RSP_DATA で読み取り値が返る。 [1]=pin */
-    ANALOG_READ: 0x25
+    ANALOG_READ: 0x25,
+    /**
+     * 非常停止。キーもマウスのボタンもすべて離す。
+     *
+     * 停止ボタンから送る。押しっぱなしのまま止まると PC が操作不能になり、
+     * 利用者は Scratch の停止ボタンを押すことすらできなくなる。
+     */
+    PANIC: 0x2F,
+
+    // --- キーボード (0x30 台) ---
+    // デバイス側は実装済み。ブロックは段階を分けて追加する。
+    /** 文字列をタイプする。 [1]=flags(0x80=続きあり) [2..31]=ASCII (0 終端) */
+    KEY_TEXT: 0x30,
+    /** キーを押して離す。 [1]=キーコード */
+    KEY_WRITE: 0x31,
+    /** キーを押したままにする。 [1]=キーコード */
+    KEY_PRESS: 0x32,
+    /** キーを離す。 [1]=キーコード */
+    KEY_RELEASE: 0x33,
+    /** キーをすべて離す。 */
+    KEY_RELEASE_ALL: 0x34,
+    /** 修飾キーと組み合わせて押す。 [1]=修飾ビット [2]=キーコード */
+    KEY_SHORTCUT: 0x35,
+
+    // --- マウス (0x40 台) ---
+    // 0x44 はデバイス → Scratch のログマーカーと同じ値なので空けてある。
+    /** 相対移動。 [1..2]=dx int16LE [3..4]=dy int16LE */
+    MOUSE_MOVE: 0x40,
+    /** ホイールを回す。 [1]=符号付きの回数 */
+    MOUSE_WHEEL: 0x41,
+    /** クリック。 [1]=ボタン */
+    MOUSE_CLICK: 0x42,
+    /**
+     * ボタンを押したままにする。 [1]=ボタン
+     *
+     * ブロックとしては露出していない。「ドラッグしながら〔〕」の囲みブロックが
+     * 中身の前後で使う。押しっぱなしをブロックの内側に閉じ込めるため。
+     */
+    MOUSE_PRESS: 0x43,
+    /** ボタンを離す。 [1]=ボタン。MOUSE_PRESS と対で使う */
+    MOUSE_RELEASE: 0x45,
+    /** ボタンをすべて離す。 */
+    MOUSE_RELEASE_ALL: 0x46,
+    /** ダブルクリック。 [1]=ボタン。判定時間があるのでデバイス側で完結させる */
+    MOUSE_DBLCLICK: 0x47,
+    /** ドラッグ。 [1..2]=dx int16LE [3..4]=dy int16LE [5]=ボタン。押す→動かす→離すを一括 */
+    MOUSE_DRAG: 0x48
+};
+
+/**
+ * マウスのボタン。デバイス側 Mouse.h の MOUSE_LEFT / RIGHT / MIDDLE と同じ値。
+ * ブロックのメニューの値としてもそのまま使う。
+ */
+const MOUSE_BUTTON = {
+    LEFT: 0x01,
+    RIGHT: 0x02,
+    MIDDLE: 0x04
 };
 
 /**
@@ -819,6 +880,7 @@ class UiapduinoProcessor {
 
 module.exports = UiapduinoProcessor;
 module.exports.CMD = CMD;
+module.exports.MOUSE_BUTTON = MOUSE_BUTTON;
 module.exports.REASON = REASON;
 module.exports.MARKER = MARKER;
 module.exports.RSP = RSP;

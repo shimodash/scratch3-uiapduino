@@ -1,4 +1,4 @@
-import {BrowserWindow, Menu, app, dialog, ipcMain, shell, systemPreferences} from 'electron';
+import {BrowserWindow, Menu, app, dialog, ipcMain, screen, shell, systemPreferences} from 'electron';
 import fs from 'fs-extra';
 import path from 'path';
 import {URL} from 'url';
@@ -182,6 +182,84 @@ const setupWebHid = session => {
             callback();
         }
     });
+};
+
+// --- UIAPduino が抜かれたときの後始末 ---------------------------------------
+//
+// UIAPduino は HID マウスそのものなので、ボタンを押したままの状態で USB を抜かれると、
+// mousedown を受け取ったウィンドウが「離された」を受け取れないまま取り残される。
+//
+// **デバイス側にはもう何もできない。** 基板はバスから電源を取っているので、
+// 抜かれた時点で止まる。5 秒の見張りも動けない。
+// Scratch も居なくなったデバイスにはコマンドを送れない。後始末はホスト側の仕事になる。
+//
+// 実機で切り分けた結果は次のとおり。**直せるのは自分のウィンドウの中だけ。**
+//
+//   OS 全体のボタン状態
+//     → **down のまま残る。** 抜いた後、別アプリでの 1 回目のクリックが
+//        消費されることで確認した (既に down なので押しても変化が無く、
+//        離したときの up だけが出る)。
+//        これを解除できるのは OS への入力注入だけで、採用しなかった (下記)。
+//
+//   mousedown を受け取った「他アプリ」(メモ帳など)
+//     → ドラッグ中のまま取り残される。**自動では直せない。**
+//        利用者がどこかを 1 回クリックすれば消える。
+//
+//   Scratch 自身 (Scratch の上で押した場合)
+//     → Chromium が掴んだまま。**自分のウィンドウなので mouseUp を送れば直る。**
+//        これがこの関数の役目。
+//
+// ⛔ 試して捨てた案が 3 つある。同じ道を辿らないように残しておく。
+//
+//   1. PowerShell から user32 の keybd_event / mouse_event を P/Invoke
+//      → Avast が IDP.HELU.PSE85 (コマンドライン検出) でブロックする。
+//        難読化されたコマンド + C# の動的コンパイル + 入力の注入という
+//        マルウェアの典型パターンそのもので、検出される方が正しい。
+//
+//   2. フォアグラウンドを奪ってほかのアプリのマウスキャプチャを打ち切る
+//      → 効かなかった (実機で確認)。BrowserWindow.focus() も、
+//        1x1 の新規ウィンドウを一瞬出す手も、どちらも他アプリのドラッグを
+//        解除できなかった。Windows の SetForegroundWindow には制限があり、
+//        入力を受け取っていないプロセスはフォアグラウンドを奪えない。
+//        そもそも OS 側が down のままなので、仮に奪えても根治しない。
+//
+//   3. koffi (N-API の FFI) でプロセス内から user32 を呼ぶ
+//      → 技術的には成立する (Electron 15 / ia32 では koffi 2.8.0 が動くと確認済み)。
+//        採用しなかったのは、FFI の宣言を誤ると例外で拾えずプロセスごと落ちること、
+//        15 プラットフォーム分 68MB のネイティブ依存を固定バージョンで抱えることが、
+//        「クリック 1 回の手間が減る」という利益に見合わないため。
+//
+// したがって「ケーブルを抜く」の保証はこうなる。
+//   デバイスは必ず止まる / Scratch 自身は自動で直る /
+//   操作していた他アプリのドラッグだけ残り、どこかを 1 回クリックすれば消える。
+
+/**
+ * 押しっぱなしのまま UIAPduino が抜かれたときの、自分のウィンドウの後始末。
+ *
+ * 直せるのは Scratch 自身が掴んだままの場合だけ。
+ * ほかのアプリのドラッグと OS 全体のボタン状態には手が届かない (上のコメント参照)。
+ *
+ * @returns {void}
+ */
+const releaseHeldInput = () => {
+    const window = _windows.main;
+    if (!window || window.isDestroyed()) return;
+
+    try {
+        // 座標をカーソル位置に合わせるのは、掴んだままの要素に届かせるため。
+        // 押されていないボタンに mouseUp を送っても害はない。
+        const bounds = window.getContentBounds();
+        const cursor = screen.getCursorScreenPoint();
+        const x = Math.max(0, Math.min(bounds.width - 1, cursor.x - bounds.x));
+        const y = Math.max(0, Math.min(bounds.height - 1, cursor.y - bounds.y));
+
+        for (const button of ['left', 'right', 'middle']) {
+            window.webContents.sendInputEvent({type: 'mouseUp', x, y, button, clickCount: 1});
+        }
+        // NOTE: キーボードのブロックを足したら、ここで修飾キーの keyUp も送ること。
+    } catch (e) {
+        log.error(`Failed to release held input: ${e}`);
+    }
 };
 
 const handlePermissionRequest = async (webContents, permission, callback, details) => {
@@ -515,6 +593,11 @@ app.on('ready', () => {
         event.preventDefault();
         _windows.privacy.hide();
     });
+});
+
+// UIAPduino が抜かれたとき、押しっぱなしの心当たりがあればレンダラから呼ばれる。
+ipcMain.on('uiapduino-release-held-input', () => {
+    releaseHeldInput();
 });
 
 ipcMain.on('open-about-window', () => {

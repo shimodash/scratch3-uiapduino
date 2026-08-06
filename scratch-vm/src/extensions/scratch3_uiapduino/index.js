@@ -10,7 +10,7 @@ const Cast = require('../../util/cast');
 const formatMessage = require('format-message');
 
 const UiapduinoProcessor = require('./uiapduinoProcessor');
-const {CMD} = UiapduinoProcessor;
+const {CMD, MOUSE_BUTTON} = UiapduinoProcessor;
 
 /**
  * 拡張機能 ID。
@@ -108,6 +108,41 @@ const message = {
         'ja-Hira': 'A3 のあたい',
         en: 'A3 value'
     },
+    mouseMove: {
+        ja: 'マウスを 右へ [X] 下へ [Y] 動かす',
+        'ja-Hira': 'マウスを みぎへ [X] したへ [Y] うごかす',
+        en: 'move mouse right [X] down [Y]'
+    },
+    mouseClick: {
+        ja: '[BUTTON] ボタンをクリックする',
+        'ja-Hira': '[BUTTON] ボタンをクリックする',
+        en: 'click [BUTTON] button'
+    },
+    mouseDoubleClick: {
+        ja: '[BUTTON] ボタンでダブルクリックする',
+        'ja-Hira': '[BUTTON] ボタンでダブルクリックする',
+        en: 'double-click [BUTTON] button'
+    },
+    mouseDrag: {
+        ja: '[BUTTON] ボタンで 右へ [X] 下へ [Y] ドラッグする',
+        'ja-Hira': '[BUTTON] ボタンで みぎへ [X] したへ [Y] ドラッグする',
+        en: 'drag [BUTTON] button right [X] down [Y]'
+    },
+    mouseDragWhile: {
+        ja: '[BUTTON] ボタンでドラッグしながら',
+        'ja-Hira': '[BUTTON] ボタンでドラッグしながら',
+        en: 'drag with [BUTTON] button while'
+    },
+    mouseWheel: {
+        ja: 'ホイールを [DIR] に [COUNT] 回す',
+        'ja-Hira': 'ホイールを [DIR] に [COUNT] まわす',
+        en: 'scroll wheel [DIR] by [COUNT]'
+    },
+    releaseAllInput: {
+        ja: 'キーとマウスをすべて離す',
+        'ja-Hira': 'キーとマウスをぜんぶはなす',
+        en: 'release all keys and mouse buttons'
+    },
     clearQueue: {
         ja: '実行待ちのコマンドをクリアする',
         'ja-Hira': 'うごくのをまっているコマンドをなくす',
@@ -137,6 +172,31 @@ const message = {
         ja: 'オフ',
         'ja-Hira': 'オフ',
         en: 'off'
+    },
+    buttonLeft: {
+        ja: '左',
+        'ja-Hira': 'ひだり',
+        en: 'left'
+    },
+    buttonRight: {
+        ja: '右',
+        'ja-Hira': 'みぎ',
+        en: 'right'
+    },
+    buttonMiddle: {
+        ja: '真ん中',
+        'ja-Hira': 'まんなか',
+        en: 'middle'
+    },
+    wheelUp: {
+        ja: '上',
+        'ja-Hira': 'うえ',
+        en: 'up'
+    },
+    wheelDown: {
+        ja: '下',
+        'ja-Hira': 'した',
+        en: 'down'
     }
 };
 
@@ -164,11 +224,109 @@ class Scratch3Uiapduino {
          */
         this._notifiedConnected = false;
 
+        /**
+         * アナログ入力の直前の読み取り値。チャンネル番号で引く。
+         *
+         * 読み取りに失敗したときの表示に使う。停止ボタンを押すと実行待ちの
+         * コマンドを捨てるので、そのとき飛んでいた読み取りも巻き添えで失敗する。
+         * そこで 0 を出すと、センサーの値が一瞬 0 に落ちたように見えてしまう。
+         * @type {Array<number>}
+         */
+        this._lastAnalog = [0, 0, 0, 0];
+
+        /**
+         * キーかマウスのボタンを押したままにした心当たりがあるか。
+         *
+         * USB が抜かれたときに、OS 側の後始末が要るかどうかの判断に使う。
+         * 「押したままにする」を送ったら立て、全部離したら倒す。
+         * どのボタンが残っているかまでは数えない。多めに立っていても、
+         * 押されていないボタンに「離した」を送るだけなので害はない。
+         * @type {boolean}
+         */
+        this._inputHeld = false;
+
+        /**
+         * 「ドラッグしながら」の入れ子の深さ。
+         *
+         * マウスは 1 つしかないので、押すのは一番外側に入るときだけ、
+         * 離すのは一番外側を抜けるときだけにする。これが無いと、内側の
+         * 囲みを抜けた時点で離れてしまい、外側のドラッグが途切れる。
+         * @type {number}
+         */
+        this._dragDepth = 0;
+
         // USB が抜かれたら processor から呼ばれる。
         this.processor.onDisconnected = () => this._handleDisconnectError();
 
+        // 停止ボタン (と緑の旗) で、キーとマウスのボタンを必ず離す。
+        // 押しっぱなしのまま止まると PC が操作不能になり、利用者は
+        // Scratch の停止ボタンを押すことすらできなくなる。
+        this.runtime.on(this.runtime.constructor.PROJECT_STOP_ALL, () => this._releaseInput());
+
+        // アプリを閉じるときにも離す。
+        //
+        // ただしこれは best-effort でしかない。beforeunload はページの後始末を
+        // 待ってくれないので、Feature Report が飛ぶ前にウィンドウが閉じることがある。
+        // 確実に離す役目はデバイス側の見張り (最後のコマンドから 5 秒) が負う。
+        if (typeof window !== 'undefined' && window.addEventListener) {
+            window.addEventListener('beforeunload', () => this._releaseInput());
+        }
+
         // ステータスボタンと接続モーダルはこの登録が無いと動かない。
         this.runtime.registerPeripheralExtension(EXTENSION_ID, this);
+    }
+
+    /**
+     * キーとマウスのボタンをすべて離す。
+     *
+     * 実行待ちを捨ててから離す。捨てないと、離した後にキューに残った
+     * 移動やクリックが動き出して、離した意味が無くなる。
+     *
+     * @returns {Promise<void>} 離し終わったら resolve。失敗しても reject しない
+     */
+    _releaseInput () {
+        this._inputHeld = false;
+        // 「ドラッグしながら」の途中で止められた場合、2 回目の呼び出しは来ない。
+        // 深さを戻しておかないと、次のドラッグで押す処理が飛ばされる。
+        this._dragDepth = 0;
+        if (!this.processor.isConnected()) return Promise.resolve();
+        this.processor.resetQueue();
+        return this.processor.request(CMD.PANIC).catch(() => {});
+    }
+
+    /**
+     * 押しっぱなしのまま USB が抜かれたときの後始末を、ホストに依頼する。
+     *
+     * ボタンを押したまま基板が居なくなると、mousedown を受け取ったウィンドウが
+     * 「離された」を受け取れないまま取り残される。取り残されるのは
+     * Scratch とは限らない。メモ帳を操作させている最中なら、メモ帳が残る。
+     *
+     * デバイス側にはもう何もできない。基板はバスから電源を取っているので、
+     * 抜かれた時点で止まり、5 秒の見張りも動けない。
+     * Scratch も居なくなったデバイスにはコマンドを送れない。
+     *
+     * 実際の処理は scratch-desktop の main プロセスが持つ。
+     * 他アプリのドラッグを打ち切るために前面に出て、Scratch 自身のために
+     * mouseUp を送る。OS への入力注入は使わない (理由は main 側のコメント)。
+     *
+     * ブラウザ版の scratch-gui には Electron が無いので、その場合は何もしない。
+     *
+     * @returns {void}
+     */
+    _releaseHeldInput () {
+        if (!this._inputHeld) return;
+        this._inputHeld = false;
+
+        // require('electron') と直接書くと、Web 版の scratch-gui をビルドするときに
+        // webpack が解決しようとして失敗する。実行時にだけ引ける window.require を使う。
+        const nodeRequire = typeof window === 'undefined' ? null : window.require;
+        if (!nodeRequire) return;
+
+        try {
+            nodeRequire('electron').ipcRenderer.send('uiapduino-release-held-input');
+        } catch (e) {
+            console.warn('[uiapduino] could not release the held input state:', e);
+        }
     }
 
     _getText (key) {
@@ -306,6 +464,110 @@ class Scratch3Uiapduino {
                     blockType: BlockType.REPORTER
                 },
                 '---',
+                // UIAPduino は HID なのでキーボードとマウスそのものになれる。
+                // ここから下のブロックは Scratch ではなく PC 本体を操作する。
+                //
+                // 動く先はフォーカスのあるウィンドウなので、通常は Scratch 自身になる。
+                // メモ帳などを操作させたいときは「n 秒待つ」を挟んで、その間に
+                // 利用者が対象のウィンドウをクリックする、という組み方をする。
+                {
+                    opcode: 'mouseMove',
+                    text: this._getText('mouseMove'),
+                    blockType: BlockType.COMMAND,
+                    arguments: {
+                        X: {
+                            type: ArgumentType.NUMBER,
+                            defaultValue: 100
+                        },
+                        Y: {
+                            type: ArgumentType.NUMBER,
+                            defaultValue: 0
+                        }
+                    }
+                },
+                {
+                    opcode: 'mouseClick',
+                    text: this._getText('mouseClick'),
+                    blockType: BlockType.COMMAND,
+                    arguments: {
+                        BUTTON: {
+                            type: ArgumentType.NUMBER,
+                            defaultValue: MOUSE_BUTTON.LEFT,
+                            menu: 'BUTTON'
+                        }
+                    }
+                },
+                {
+                    opcode: 'mouseDoubleClick',
+                    text: this._getText('mouseDoubleClick'),
+                    blockType: BlockType.COMMAND,
+                    arguments: {
+                        BUTTON: {
+                            type: ArgumentType.NUMBER,
+                            defaultValue: MOUSE_BUTTON.LEFT,
+                            menu: 'BUTTON'
+                        }
+                    }
+                },
+                {
+                    opcode: 'mouseDrag',
+                    text: this._getText('mouseDrag'),
+                    blockType: BlockType.COMMAND,
+                    arguments: {
+                        BUTTON: {
+                            type: ArgumentType.NUMBER,
+                            defaultValue: MOUSE_BUTTON.LEFT,
+                            menu: 'BUTTON'
+                        },
+                        X: {
+                            type: ArgumentType.NUMBER,
+                            defaultValue: 100
+                        },
+                        Y: {
+                            type: ArgumentType.NUMBER,
+                            defaultValue: 0
+                        }
+                    }
+                },
+                {
+                    // 囲みブロック。中身の前後で押す・離すが自動的に行われる。
+                    // 直線 1 本では描けない円や折れ線を、中に「動かす」を並べて描くためのもの。
+                    //
+                    // BlockType.LOOP は「中身が終わったらもう一度呼ばれる」。
+                    // repeat ブロックと同じ仕組みで、2 回目の呼び出しで離す。
+                    opcode: 'mouseDragWhile',
+                    text: this._getText('mouseDragWhile'),
+                    blockType: BlockType.LOOP,
+                    arguments: {
+                        BUTTON: {
+                            type: ArgumentType.NUMBER,
+                            defaultValue: MOUSE_BUTTON.LEFT,
+                            menu: 'BUTTON'
+                        }
+                    }
+                },
+                {
+                    opcode: 'mouseWheel',
+                    text: this._getText('mouseWheel'),
+                    blockType: BlockType.COMMAND,
+                    arguments: {
+                        DIR: {
+                            type: ArgumentType.NUMBER,
+                            defaultValue: -1,
+                            menu: 'WHEEL'
+                        },
+                        COUNT: {
+                            type: ArgumentType.NUMBER,
+                            defaultValue: 3
+                        }
+                    }
+                },
+                {
+                    opcode: 'releaseAllInput',
+                    text: this._getText('releaseAllInput'),
+                    blockType: BlockType.COMMAND
+                },
+                '---',
                 {
                     opcode: 'clearQueue',
                     text: this._getText('clearQueue'),
@@ -326,6 +588,23 @@ class Scratch3Uiapduino {
                     items: [
                         {text: this._getText('on'), value: '1'},
                         {text: this._getText('off'), value: '0'}
+                    ]
+                },
+                // 値はデバイス側 Mouse.h の MOUSE_LEFT / RIGHT / MIDDLE と同じ
+                BUTTON: {
+                    acceptReporters: true,
+                    items: [
+                        {text: this._getText('buttonLeft'), value: String(MOUSE_BUTTON.LEFT)},
+                        {text: this._getText('buttonRight'), value: String(MOUSE_BUTTON.RIGHT)},
+                        {text: this._getText('buttonMiddle'), value: String(MOUSE_BUTTON.MIDDLE)}
+                    ]
+                },
+                // USB HID のホイールは「奥に回す = 正」なので、上が +1 になる
+                WHEEL: {
+                    acceptReporters: true,
+                    items: [
+                        {text: this._getText('wheelDown'), value: '-1'},
+                        {text: this._getText('wheelUp'), value: '1'}
                     ]
                 }
             }
@@ -369,10 +648,14 @@ class Scratch3Uiapduino {
      * Scratch VM 3.29 の disconnectPeripheral() は戻り値の Promise を待たないので、
      * 失敗はここで処理して外へ投げない。
      *
+     * 閉じる前に必ずキーとマウスを離す。押しっぱなしのまま閉じると、
+     * 基板は生きているので見張りが働くまでの 5 秒間ボタンが押されたままになる。
+     *
      * @returns {Promise<void>} 切断完了
      */
     disconnect () {
-        return this.processor.disconnect()
+        return this._releaseInput()
+            .then(() => this.processor.disconnect())
             .catch(e => {
                 console.warn('[uiapduino] disconnect failed:', e);
             })
@@ -456,6 +739,9 @@ class Scratch3Uiapduino {
      * @returns {void}
      */
     _handleDisconnectError () {
+        // 押しっぱなしを先に解除する。切断の通知はその後でよい。
+        this._releaseHeldInput();
+
         if (!this._emitDisconnected()) return;
         this.runtime.emit(this.runtime.constructor.PERIPHERAL_CONNECTION_LOST_ERROR, {
             message: 'Scratch lost connection to',
@@ -519,12 +805,17 @@ class Scratch3Uiapduino {
      * 実際には「応答が返ったら次を投げる」ペースに落ち着く。
      *
      * @param {number} channel - アナログ番号 (A0 なら 0)。デジタルピン番号ではない
-     * @returns {Promise<number>} 読み取り値。失敗したら 0
+     * @returns {Promise<number>} 読み取り値。失敗したら直前の値
      */
     _analogRead (channel) {
         return this.processor
             .request(CMD.ANALOG_READ, [channel])
-            .catch(() => 0);
+            .then(value => {
+                this._lastAnalog[channel] = value;
+                return value;
+            })
+            // 「ピン [ ] の値」は A0-A3 以外の番号も渡せるので、覚えていなければ 0
+            .catch(() => this._lastAnalog[channel] || 0);
     }
 
     analogA0 () {
@@ -541,6 +832,175 @@ class Scratch3Uiapduino {
 
     analogA3 () {
         return this._analogRead(3);
+    }
+
+    // --- マウス ---------------------------------------------------------
+    // ここから下は Scratch ではなく PC 本体を操作する。
+    // 動く先はフォーカスのあるウィンドウなので、普通は Scratch 自身になる。
+
+    /**
+     * 数値を符号付き 16bit に収める。
+     * @param {*} value - ブロックの引数
+     * @returns {number} -32768〜32767 の整数
+     */
+    _toInt16 (value) {
+        const rounded = Math.round(Cast.toNumber(value)) || 0;
+        return Math.max(-32768, Math.min(32767, rounded));
+    }
+
+    /**
+     * 符号付き 16bit をリトルエンディアンのバイト列にする。
+     * @param {number} value - _toInt16 済みの数値
+     * @returns {Array<number>} [下位, 上位]
+     */
+    _int16Bytes (value) {
+        return [value & 0xFF, (value >> 8) & 0xFF];
+    }
+
+    /**
+     * メニューの値をマウスのボタンにする。
+     *
+     * メニューは acceptReporters なので、ブロックをはめ込めば何でも渡ってくる。
+     * 知らない値が来たら左ボタンにしておく。デバイス側でビットとして解釈されるので、
+     * そのまま流すと複数ボタンを同時に押すことになりかねない。
+     *
+     * @param {*} value - ブロックの引数
+     * @returns {number} MOUSE_BUTTON のいずれか
+     */
+    _toButton (value) {
+        const button = Cast.toNumber(value);
+        if (button === MOUSE_BUTTON.RIGHT) return MOUSE_BUTTON.RIGHT;
+        if (button === MOUSE_BUTTON.MIDDLE) return MOUSE_BUTTON.MIDDLE;
+        return MOUSE_BUTTON.LEFT;
+    }
+
+    /**
+     * マウス移動の応答待ち時間 (ms)。
+     *
+     * デバイスは 1 ステップが 127px 以下になるように分割し、1 ステップに 10ms かける。
+     * 既定の 3 秒のままだと、画面 3 枚分を超える移動でタイムアウトしてしまう。
+     *
+     * 分割数の式はデバイス側 ScratchUiapduino.ino の stepsForMove() と同じ。
+     * 片方だけ変えるとタイムアウトするので、変えるときは両方を直すこと。
+     *
+     * @param {number} dx - 横の移動量
+     * @param {number} dy - 縦の移動量
+     * @returns {number} 待ち時間 (ms)
+     */
+    _moveTimeout (dx, dy) {
+        const distance = Math.max(Math.abs(dx), Math.abs(dy));
+        const steps = Math.max(10, Math.ceil(distance / 127));
+        return 1000 + (steps * 20);
+    }
+
+    mouseMove (args) {
+        const dx = this._toInt16(args.X);
+        const dy = this._toInt16(args.Y);
+        return this.processor
+            .request(
+                CMD.MOUSE_MOVE,
+                [...this._int16Bytes(dx), ...this._int16Bytes(dy)],
+                this._moveTimeout(dx, dy)
+            )
+            .catch(() => {});
+    }
+
+    mouseClick (args) {
+        return this.processor
+            .request(CMD.MOUSE_CLICK, [this._toButton(args.BUTTON)])
+            .catch(() => {});
+    }
+
+    mouseDoubleClick (args) {
+        // 2 回目までの間隔はデバイス側が持つ。Scratch から 2 回送ると、
+        // 応答待ちの往復で OS のダブルクリック判定時間 (既定 500ms) を超えかねない。
+        return this.processor
+            .request(CMD.MOUSE_DBLCLICK, [this._toButton(args.BUTTON)])
+            .catch(() => {});
+    }
+
+    mouseDrag (args) {
+        const dx = this._toInt16(args.X);
+        const dy = this._toInt16(args.Y);
+        // 押す・動かす・離すをデバイス側で完結させる。Scratch から 3 回に分けると
+        // その間ずっとボタンが押されたままになり、USB を抜かれたときの窓が広がる。
+        return this.processor
+            .request(
+                CMD.MOUSE_DRAG,
+                [...this._int16Bytes(dx), ...this._int16Bytes(dy), this._toButton(args.BUTTON)],
+                this._moveTimeout(dx, dy)
+            )
+            .catch(() => {});
+    }
+
+    /**
+     * 「[ ] ボタンでドラッグしながら〔 〕」の囲みブロック。
+     *
+     * BlockType.LOOP は「中身が終わったらもう一度呼ばれる」。repeat ブロックと同じ仕組みで、
+     * 1 回目で押して中身へ入り、2 回目で離して終わる。
+     *
+     *   1 回目 : press → util.startBranch(1, true) → 中身が動く
+     *   2 回目 : release。startBranch を呼ばないのでここで終わる
+     *
+     * util.startBranch() は同期的に呼ばなければならないので、press の応答は待たない。
+     * 待たなくても順序は崩れない。processor のキューが直列化するので、
+     * 中身の「動かす」は必ず press の後ろに並ぶ。
+     *
+     * ⚠ 中身の途中で止められると 2 回目が来ない。
+     *   停止ボタンは PROJECT_STOP_ALL → PANIC で拾える。
+     *   「このスクリプトを止める」のような経路はデバイス側の見張り (5 秒) が受ける。
+     *
+     * @param {object} args - ブロックの引数
+     * @param {BlockUtility} util - スタックフレームと分岐の制御
+     * @returns {?Promise} 2 回目だけ、離し終わるまで待つ Promise を返す
+     */
+    mouseDragWhile (args, util) {
+        const button = this._toButton(args.BUTTON);
+
+        if (util.stackFrame.uiapduinoDragging) {
+            // 2 回目。中身が終わったので離す。
+            util.stackFrame.uiapduinoDragging = false;
+            this._dragDepth = Math.max(0, this._dragDepth - 1);
+            if (this._dragDepth > 0) return null; // 外側のドラッグがまだ続いている
+            this._inputHeld = false;
+            return this.processor
+                .request(CMD.MOUSE_RELEASE, [button])
+                .catch(() => {});
+        }
+
+        // 1 回目。押してから中身へ入る。
+        util.stackFrame.uiapduinoDragging = true;
+        this._dragDepth += 1;
+        if (this._dragDepth === 1) {
+            // 送る前に立てる。送信中に USB が抜ける可能性があるため。
+            this._inputHeld = true;
+            this.processor
+                .request(CMD.MOUSE_PRESS, [button])
+                .catch(() => {});
+        }
+        util.startBranch(1, true);
+        return null;
+    }
+
+    mouseWheel (args) {
+        // デバイスは 1 刻みずつ 10ms かけて送る。ホイールの刻みを無視するアプリが
+        // あるためだが、そのぶん回数が多いと時間がかかるので上限を置く。
+        const count = Math.max(0, Math.min(100, Math.round(Cast.toNumber(args.COUNT)) || 0));
+        const direction = Cast.toNumber(args.DIR) < 0 ? -1 : 1;
+        return this.processor
+            .request(CMD.MOUSE_WHEEL, [direction * count], 1000 + (count * 20))
+            .catch(() => {});
+    }
+
+    releaseAllInput () {
+        // _releaseInput() は使わない。あちらは実行待ちを捨てるが、これは普通の
+        // ブロックなので、並行して動いている別のスクリプトのコマンドまで
+        // 巻き添えで捨ててはいけない。
+        this._inputHeld = false;
+        this._dragDepth = 0;
+        return this.processor
+            .request(CMD.PANIC)
+            .catch(() => {});
     }
 
     clearQueue () {
