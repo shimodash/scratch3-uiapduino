@@ -66,6 +66,34 @@ const HANDSHAKE = {
 };
 
 /**
+ * connect() が失敗したときの理由コード。
+ *
+ * 上位 (index.js) はこれを見てログを出す。
+ * 現行の Scratch GUI 3.29 は検索中のエラー種別を区別できないので、
+ * GUI への通知はどの理由でも PERIPHERAL_SCAN_TIMEOUT に寄せる。
+ * 理由ごとの案内をモーダルに出したくなったらここを起点に分岐する。
+ */
+const REASON = {
+    /** navigator.hid が無い (WebHID 非対応の実行環境) */
+    NO_API: 'no-api',
+    /**
+     * 対象デバイスが無い、またはデバイス選択がキャンセルされた。
+     *
+     * WebHID はどちらの場合も空配列を返し、Electron の select-hid-device も
+     * 候補が無ければ callback() でキャンセル扱いにするため、この 2 つは区別できない。
+     */
+    NOT_FOUND_OR_CANCELLED: 'not-found-or-cancelled',
+    /** HIDDevice.open() に失敗した */
+    OPEN_FAILED: 'open-failed',
+    /** PING に応答が無かった */
+    HANDSHAKE_NO_RESPONSE: 'handshake-no-response',
+    /** プロトコルのバージョンが一致しない (旧世代スケッチを含む) */
+    PROTOCOL_MISMATCH: 'protocol-mismatch',
+    /** 上記以外の予期しない失敗 */
+    UNKNOWN: 'unknown'
+};
+
+/**
  * コマンド ID (Web → UIAPduino, Feature Report の先頭バイト)。
  *
  * 0x01 は Hid.h の「接続通知」で予約済み。
@@ -165,6 +193,24 @@ class UiapduinoProcessor {
         this.device = null;
         this.featureReportSize = FEATURE_REPORT_SIZE;
 
+        /**
+         * ハンドシェイクまで終わっているか。
+         *
+         * HIDDevice.open() が済んだだけの状態 (transport open) と区別する。
+         * open 直後はまだ「UIAPduino として通信できる」とは限らないので、
+         * PING でプロトコルを照合できたときだけ true にする。
+         * 外部に見せる isConnected() はこちらを見る。
+         */
+        this.ready = false;
+
+        /**
+         * 接続処理中の Promise。null なら接続処理は走っていない。
+         *
+         * ステータスボタンと接続ブロックから同時に接続を始められるので、
+         * これが無いと二重 open と二重ハンドシェイクが起きる。
+         */
+        this.connecting = null;
+
         /** 送信待ちコマンドの配列。要素は {payload, resolve, reject} */
         this.queue = [];
         /** 現在応答待ちのコマンド。null なら送信可能。 */
@@ -185,21 +231,46 @@ class UiapduinoProcessor {
          */
         this.onConsoleText = text => console.log(`[uiapduino] ${text}`);
 
+        /**
+         * USB が抜かれたことを上位へ知らせるコールバック。
+         *
+         * processor は Scratch Runtime を知らないので、イベントの emit は index.js に任せる。
+         * 意図的な disconnect() では呼ばない。物理切断のときだけ呼ぶ。
+         */
+        this.onDisconnected = null;
+
         this._onInputReport = this._onInputReport.bind(this);
     }
 
     /**
-     * 接続済みかどうか。
-     * @returns {boolean} デバイスが open 済みなら true
+     * HIDDevice が open されているか。
+     *
+     * ハンドシェイク中はまだ isConnected() が false なので、
+     * PING を送る経路とキューの送信判定はこちらを使う。
+     *
+     * @returns {boolean} open 済みなら true
+     */
+    isTransportOpen () {
+        return Boolean(this.device && this.device.opened);
+    }
+
+    /**
+     * UIAPduino として通信できる状態か。
+     *
+     * open しただけでは true にならない。プロトコル照合まで終わっている必要がある。
+     * Scratch GUI がステータスボタンの表示を決めるために同期的に読む。
+     *
+     * @returns {boolean} ハンドシェイク済みなら true
      */
     isConnected () {
-        return !!(this.device && this.device.opened);
+        return this.ready && this.isTransportOpen();
     }
 
     /**
      * UIAPduino に接続する。
      *
-     * 既に許可済みのデバイスがあれば getDevices() で拾う。無ければ requestDevice() を試す。
+     * デバイスの取得から PING によるプロトコル照合までを一度に行う。
+     * 呼び出し中に再度呼ばれても接続処理は 1 回だけ走る。
      *
      * NOTE: requestDevice() は Chromium 側でユーザ操作 (実際のクリック) を要求する。
      *       Scratch のブロック実行は VM のループから呼ばれておりユーザ操作とみなされないため、
@@ -209,68 +280,135 @@ class UiapduinoProcessor {
      *       uiap-hid-web は全ページ requestDevice() のみで getDevices() を使っていないため、
      *       この経路はサイト側では一度も踏まれていない。実機で最初に検証すべき箇所。
      *
-     * @returns {Promise<boolean>} 接続できたら true
+     * @returns {Promise<{ok: boolean, reason: ?string, error: ?Error}>} 接続結果。
+     *          成功なら {ok: true}、失敗なら REASON.* を載せた {ok: false, reason, error?}
      */
-    async connect () {
-        if (this.isConnected()) return true;
+    connect () {
+        if (this.isConnected()) return Promise.resolve({ok: true});
+        // 既に接続処理が走っているなら、その Promise に相乗りさせる。
+        // ステータスボタンと接続ブロックの同時操作で二重 open させないため。
+        if (this.connecting) return this.connecting;
+
+        this.connecting = this._connect()
+            // connect() は reject しない契約にしておく。
+            // ここで拾い損ねるとガードが解除されず、二度と接続できなくなる。
+            .catch(e => {
+                console.error('[uiapduino] connect failed:', e);
+                this._teardown();
+                return {ok: false, reason: REASON.UNKNOWN, error: e};
+            })
+            .then(result => {
+                this.connecting = null;
+                return result;
+            });
+        return this.connecting;
+    }
+
+    /**
+     * connect() の中身。ガードは呼び出し側で済んでいる前提。
+     *
+     * 途中で失敗した場合は必ず未接続状態へ戻してから返す。
+     * ready のまま抜ける経路を作らないこと。
+     *
+     * @returns {Promise<{ok: boolean, reason: ?string, error: ?Error}>} 接続結果
+     */
+    async _connect () {
+        // 前回の失敗や物理切断で device が残っていることは無い想定だが、
+        // 残っていたら古いリスナごと捨ててから始める。
+        if (this.device) this._teardown();
 
         if (!navigator.hid) {
             console.error('[uiapduino] WebHID is not available in this environment');
-            return false;
+            return {ok: false, reason: REASON.NO_API};
+        }
+
+        let device;
+        try {
+            device = await this._findDevice();
+        } catch (e) {
+            // requestDevice() はユーザ操作が無いと SecurityError を投げる。
+            // 利用者から見れば「選べなかった」なので取得失敗と同じ扱いにする。
+            console.error('[uiapduino] device lookup failed:', e);
+            return {ok: false, reason: REASON.NOT_FOUND_OR_CANCELLED, error: e};
+        }
+
+        if (!device) {
+            console.warn('[uiapduino] device not found');
+            return {ok: false, reason: REASON.NOT_FOUND_OR_CANCELLED};
         }
 
         try {
-            const granted = (await navigator.hid.getDevices()).filter(d => (
-                d.vendorId === DEVICE_FILTER.vendorId &&
-                d.productId === DEVICE_FILTER.productId
-            ));
-            // USB 設定が Keyboard+Mouse+WebHID の場合、同じ VID/PID で
-            // キーボード / マウスのコレクションも見えることがある。
-            // ベンダー定義コレクション (0xFF00 / 0x01) を持つものを優先する。
-            let device = granted.find(d => (d.collections || []).some(c => (
-                c.usagePage === DEVICE_FILTER.usagePage &&
-                c.usage === DEVICE_FILTER.usage
-            ))) || granted[0];
-
-            if (!device) {
-                const devices = await navigator.hid.requestDevice({filters: [DEVICE_FILTER]});
-                device = devices[0];
-            }
-
-            if (!device) {
-                console.warn('[uiapduino] device not found');
-                return false;
-            }
-
             if (!device.opened) {
                 await device.open();
             }
+        } catch (e) {
+            console.error('[uiapduino] open failed:', e);
+            return {ok: false, reason: REASON.OPEN_FAILED, error: e};
+        }
 
-            this._hookDisconnect();
-
-            // 再接続時に Chromium が同じ HIDDevice を使い回すことがあるため、
-            // 二重登録にならないよう一度外してから付ける。
-            device.removeEventListener('inputreport', this._onInputReport);
-            device.addEventListener('inputreport', this._onInputReport);
-            this.device = device;
-            this.featureReportSize = this._detectFeatureReportSize(device);
-            this.consoleBytes = [];
-            this.desyncSuspected = false;
-
+        try {
+            this._attach(device);
             await this._sendConnectNotify();
 
             // デバイス側スケッチとプロトコルが一致しているか確かめる。
             // ここで弾かないと、噛み合わないコマンドを送り続けることになる。
-            if (!await this._checkVersion()) {
+            const handshake = await this._checkVersion();
+            if (!handshake.ok) {
                 this._teardown();
-                return false;
+                return handshake;
             }
 
-            return true;
+            this.ready = true;
+            return {ok: true};
         } catch (e) {
             console.error('[uiapduino] connect failed:', e);
-            return false;
+            this._teardown();
+            return {ok: false, reason: REASON.UNKNOWN, error: e};
         }
+    }
+
+    /**
+     * 接続先の HIDDevice を探す。
+     *
+     * 既に許可済みのデバイスがあれば getDevices() で拾う。無ければ requestDevice() を試す。
+     *
+     * @returns {Promise<?HIDDevice>} 見つかったデバイス。無ければ null
+     */
+    async _findDevice () {
+        const granted = (await navigator.hid.getDevices()).filter(d => (
+            d.vendorId === DEVICE_FILTER.vendorId &&
+            d.productId === DEVICE_FILTER.productId
+        ));
+        // USB 設定が Keyboard+Mouse+WebHID の場合、同じ VID/PID で
+        // キーボード / マウスのコレクションも見えることがある。
+        // ベンダー定義コレクション (0xFF00 / 0x01) を持つものを優先する。
+        const device = granted.find(d => (d.collections || []).some(c => (
+            c.usagePage === DEVICE_FILTER.usagePage &&
+            c.usage === DEVICE_FILTER.usage
+        ))) || granted[0];
+        if (device) return device;
+
+        const devices = await navigator.hid.requestDevice({filters: [DEVICE_FILTER]});
+        return devices[0] || null;
+    }
+
+    /**
+     * open 済みの HIDDevice を processor に結び付ける。
+     * この時点ではまだ ready ではない。送れるのはハンドシェイクだけ。
+     * @param {HIDDevice} device - open 済みのデバイス
+     * @returns {void}
+     */
+    _attach (device) {
+        this._hookDisconnect();
+
+        // 再接続時に Chromium が同じ HIDDevice を使い回すことがあるため、
+        // 二重登録にならないよう一度外してから付ける。
+        device.removeEventListener('inputreport', this._onInputReport);
+        device.addEventListener('inputreport', this._onInputReport);
+        this.device = device;
+        this.featureReportSize = this._detectFeatureReportSize(device);
+        this.consoleBytes = [];
+        this.desyncSuspected = false;
     }
 
     /**
@@ -278,19 +416,21 @@ class UiapduinoProcessor {
      *
      * デバイス側スケッチは PING に対しバージョンを DATA で返す。
      * バージョンを持たない世代のスケッチは RSP_OK だけを返すので、
-     * request() は 0 で resolve する。これで世代を見分けられる。
+     * リクエストは 0 で resolve する。これで世代を見分けられる。
      *
-     * @returns {Promise<boolean>} 一致していれば true
+     * まだ ready ではないので、通常の request() ではなくハンドシェイク用の経路を使う。
+     *
+     * @returns {Promise<{ok: boolean, reason: ?string}>} 一致していれば {ok: true}
      */
     async _checkVersion () {
         let version;
         try {
-            version = await this.request(CMD.PING);
+            version = await this._handshakeRequest(CMD.PING);
         } catch (e) {
             version = HANDSHAKE.NO_RESPONSE;
         }
 
-        if (version === PROTOCOL_VERSION) return true;
+        if (version === PROTOCOL_VERSION) return {ok: true};
 
         const reflash = 'sketches/ScratchUiapduino を書き込み直してください。';
         if (version === HANDSHAKE.NO_RESPONSE) {
@@ -298,7 +438,9 @@ class UiapduinoProcessor {
                 '[uiapduino] デバイスが応答しません。' +
                 `スケッチが書き込まれていないか、別のスケッチが動いています。${reflash}`
             );
-        } else if (version === HANDSHAKE.LEGACY) {
+            return {ok: false, reason: REASON.HANDSHAKE_NO_RESPONSE};
+        }
+        if (version === HANDSHAKE.LEGACY) {
             console.error(
                 '[uiapduino] スケッチが古すぎます (バージョンを返しません)。' + reflash
             );
@@ -308,7 +450,7 @@ class UiapduinoProcessor {
                 `デバイス=${version} / この拡張機能=${PROTOCOL_VERSION}。${reflash}`
             );
         }
-        return false;
+        return {ok: false, reason: REASON.PROTOCOL_MISMATCH};
     }
 
     /**
@@ -327,6 +469,8 @@ class UiapduinoProcessor {
             if (!this.device || event.device !== this.device) return;
             console.warn('[uiapduino] device disconnected');
             this._teardown();
+            // 上位 (index.js) が Scratch へ切断と接続喪失を通知する。
+            if (this.onDisconnected) this.onDisconnected();
         });
         this.disconnectHooked = true;
     }
@@ -337,6 +481,7 @@ class UiapduinoProcessor {
      * @returns {void}
      */
     _teardown () {
+        this.ready = false;
         if (this.device) {
             this.device.removeEventListener('inputreport', this._onInputReport);
             this.device = null;
@@ -416,7 +561,36 @@ class UiapduinoProcessor {
         if (!this.isConnected()) {
             return Promise.reject(new Error('uiapduino is not connected'));
         }
+        return this._enqueue(command, params, timeout);
+    }
 
+    /**
+     * ハンドシェイク専用のコマンド送信。
+     *
+     * PING は ready になる前に送る必要があるので、request() のゲートを通せない。
+     * かといって request() のゲートを緩めると、ハンドシェイク中に通常ブロックの
+     * コマンドまで通ってしまう。専用の経路を分けておく。
+     *
+     * @param {number} command - CMD.* のいずれか
+     * @param {Array<number>} [params] - パラメータのバイト列
+     * @param {number} [timeout] - 応答を諦めるまでの時間 (ms)
+     * @returns {Promise<number>} 戻り値
+     */
+    _handshakeRequest (command, params = [], timeout = COMMAND_TIMEOUT) {
+        if (!this.isTransportOpen()) {
+            return Promise.reject(new Error('uiapduino transport is not open'));
+        }
+        return this._enqueue(command, params, timeout);
+    }
+
+    /**
+     * コマンドを組み立ててキューに積む。接続状態の判定は呼び出し側の責任。
+     * @param {number} command - CMD.* のいずれか
+     * @param {Array<number>} params - パラメータのバイト列
+     * @param {number} timeout - 応答を諦めるまでの時間 (ms)
+     * @returns {Promise<number>} 戻り値
+     */
+    _enqueue (command, params, timeout) {
         const payload = new Uint8Array(this.featureReportSize);
         payload[0] = command;
         params.forEach((value, i) => {
@@ -449,7 +623,8 @@ class UiapduinoProcessor {
      */
     _dequeue () {
         if (this.pending || this.queue.length === 0) return;
-        if (!this.isConnected()) {
+        // ハンドシェイク中はまだ ready ではないので transport だけを見る。
+        if (!this.isTransportOpen()) {
             // 応答の処理中に切断された場合。残りは捨てる。
             this.resetQueue();
             return;
@@ -644,6 +819,7 @@ class UiapduinoProcessor {
 
 module.exports = UiapduinoProcessor;
 module.exports.CMD = CMD;
+module.exports.REASON = REASON;
 module.exports.MARKER = MARKER;
 module.exports.RSP = RSP;
 module.exports.PROTOCOL_VERSION = PROTOCOL_VERSION;

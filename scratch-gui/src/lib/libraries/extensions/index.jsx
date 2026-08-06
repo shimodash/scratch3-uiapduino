@@ -48,6 +48,8 @@ import gdxforConnectionSmallIconURL from './gdxfor/gdxfor-small.svg';
 
 import uiapduinoIconURL from './uiapduino/uiapduino.png';
 import uiapduinoInsetIconURL from './uiapduino/uiapduino-small.png';
+import uiapduinoConnectionIconURL from './uiapduino/uiapduino-illustration.png';
+import uiapduinoConnectionBadgeIconURL from './uiapduino/usb-hid-white.svg';
 
 export default [
     {
@@ -63,12 +65,45 @@ export default [
         insetIconURL: uiapduinoInsetIconURL,
         description: (
             <FormattedMessage
-                defaultMessage="Control UIAPduino over USB-HID."
+                defaultMessage="Create your own controller!"
                 description="Description for the 'UIAPduino' extension"
                 id="gui.extension.uiapduino.description"
             />
         ),
-        featured: true
+        featured: true,
+        // 拡張を追加した直後に接続モーダルを開く。
+        // キャンセルされても拡張は追加済みのままで、後からステータスボタンで接続できる。
+        launchPeripheralConnectionFlow: true,
+        // Bluetooth 機器向けの「本体のボタンを押してください」画面を使わず、
+        // 通常の検索ステップを使う。検索自体はマウント時に自動で始まる。
+        useAutoScan: false,
+        // 接続モーダルの絵は専用のものを使う。高さ 165px ちょうどで作ること。
+        //
+        // 上流の connection-modal.css は .peripheral-activity-icon のサイズ指定を
+        // コメントアウトしており、画像は原寸で表示される。置き場所の .activityArea は
+        // 高さ 165px しかないので、一覧用の 600x372 を渡すと枠からはみ出して
+        // 「接続しました」やボタンの上に乗る。
+        //
+        // 165px は padding .5rem を含んだ値なので、149px で作ると上下に 8px ずつ
+        // 背景色の帯が出る。165px で作ると padding の分を覆って帯が消える
+        // (.activityArea は overflow を指定しておらず、flex 中央寄せで上下へ均等にはみ出す)。
+        connectionIconURL: uiapduinoConnectionIconURL,
+        connectionSmallIconURL: uiapduinoInsetIconURL,
+        // 接続中と接続済みの画面に出る小さなバッジ。
+        // 上流は Bluetooth マーク固定だが、UIAPduino は WebHID なので嘘になる。
+        // このプロパティを持たない拡張機能は従来どおり Bluetooth マークのままなので、
+        // Scratch Link を使う micro:bit などの表示は変わらない。
+        connectionBadgeIconURL: uiapduinoConnectionBadgeIconURL,
+        // ここは英語のままにしておくこと。defaultMessage は未翻訳ロケール全部に出る。
+        // 日本語は uiapduino/messages.js にあり、src/reducers/locales.js が重ねている。
+        connectingMessage: (
+            <FormattedMessage
+                defaultMessage="Connecting to UIAPduino"
+                description="Message shown while connecting to UIAPduino."
+                id="gui.extension.uiapduino.connectingMessage"
+            />
+        ),
+        helpLink: 'https://github.com/tarosay/scratch3-uiapduino#readme'
     },
     {
         name: (

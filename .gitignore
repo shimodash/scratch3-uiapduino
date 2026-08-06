@@ -32,6 +32,22 @@
 !/scratch-gui/src/lib/libraries/extensions/index.jsx
 !/scratch-gui/src/lib/libraries/extensions/uiapduino
 
+# 拡張機能一覧と接続モーダルの訳文を scratch-l10n のメッセージへ重ねる
+!/scratch-gui/src/reducers
+/scratch-gui/src/reducers/*
+!/scratch-gui/src/reducers/locales.js
+
+# 接続モーダルのバッジを拡張機能ごとに差し替えられるようにする
+!/scratch-gui/src/containers
+/scratch-gui/src/containers/*
+!/scratch-gui/src/containers/connection-modal.jsx
+!/scratch-gui/src/components
+/scratch-gui/src/components/*
+!/scratch-gui/src/components/connection-modal
+/scratch-gui/src/components/connection-modal/*
+!/scratch-gui/src/components/connection-modal/connected-step.jsx
+!/scratch-gui/src/components/connection-modal/connecting-step.jsx
+
 # WebHID の許可設定のため main プロセスにもパッチを当てる
 /scratch-desktop/*
 !/scratch-desktop/src

@@ -16,6 +16,8 @@ clone した上に、このリポジトリのファイルを被せてビルド�
 |---|---|
 | ブロック定義 | 汎用 Arduino 相当。**全ブロック実機確認済み** |
 | WebHID 通信層 | **実機で確認済み**（接続・切断・再接続・入出力） |
+| 接続フロー | ステータスボタンと接続モーダルに対応。**実機確認済み** |
+| GUI の日本語 | 拡張カードと接続モーダルを `ja` / `ja-Hira` で表示。実機確認済み |
 | コマンドプロトコル | uiap-hid-web と同じ `0x52` 方式に統一済み |
 | デバイス側スケッチ | `sketches/ScratchUiapduino/` にあり・実機で全コマンド確認済み |
 | バージョン照合 | 実機確認済み |
@@ -28,6 +30,13 @@ clone した上に、このリポジトリのファイルを被せてビルド�
 - 「つなぐ」がユーザ操作なしで `true` を返す
 - USB を抜くと「つながっている」が false になり、挿し直して「つなぐ」で復帰する
 - デバイスが無い状態で「つなぐ」を繰り返しても落ちず `false` を返す
+- 拡張機能一覧で UIAPduino を選ぶと接続モーダルが自動で開く
+- モーダルは機器一覧を出さず、そのまま接続済み画面へ進む
+- 「つながっている」はバージョン照合の完了後だけ true になる
+- USB を抜くとステータスボタンが「!」に戻り、接続が切れた旨の警告が出る
+- 接続に失敗しても Scratch Link / Bluetooth の案内は表示されない
+- 接続バッジが Bluetooth ではなく USB マークになる
+- 拡張カードと接続モーダルが日本語・ひらがな・英語で切り替わる
 
 ---
 
@@ -45,6 +54,9 @@ clone した上に、このリポジトリのファイルを被せてビルド�
 | `scratch-vm/src/extensions/scratch3_uiapduino/uiapduinoProcessor.js` | WebHID 通信 + コマンドキュー |
 | `scratch-gui/src/lib/libraries/extensions/uiapduino/uiapduino.png` | 拡張機能ライブラリのカード画像 (600x372) |
 | `scratch-gui/src/lib/libraries/extensions/uiapduino/uiapduino-small.png` | 小アイコン (80x80) |
+| `scratch-gui/src/lib/libraries/extensions/uiapduino/uiapduino-illustration.png` | 接続モーダル用の画像 (266x165) |
+| `scratch-gui/src/lib/libraries/extensions/uiapduino/usb-hid-white.svg` | 接続バッジの USB マーク (20x20) |
+| `scratch-gui/src/lib/libraries/extensions/uiapduino/messages.js` | GUI 側の日本語訳（`ja` / `ja-Hira`） |
 | `sketches/ScratchUiapduino/ScratchUiapduino.ino` | デバイス側スケッチ |
 | `sketches/ScratchUiapduino/sketch.yaml` | ボードと Tools メニューの設定 |
 | `build-scratch3-uiapduino.ps1` | ビルドスクリプト |
@@ -65,6 +77,10 @@ Arduino IDE から別途 UIAPduino に書き込みます。
 |---|---|
 | `scratch-vm/src/extension-support/extension-manager.js` | `builtinExtensions` に `uiapduino` を 1 行追加 |
 | `scratch-gui/src/lib/libraries/extensions/index.jsx` | 拡張機能ライブラリの配列に UIAPduino の項目を追加 |
+| `scratch-gui/src/reducers/locales.js` | `scratch-l10n` のメッセージに UIAPduino の訳文を重ねる |
+| `scratch-gui/src/containers/connection-modal.jsx` | 接続バッジの絵を下位コンポーネントへ渡す |
+| `scratch-gui/src/components/connection-modal/connected-step.jsx` | 接続バッジを差し替え可能にする |
+| `scratch-gui/src/components/connection-modal/connecting-step.jsx` | 同上 |
 | `scratch-desktop/src/main/index.js` | WebHID の許可設定を追加（後述） |
 
 上流のどのバージョンに対するパッチかは `build-scratch3-uiapduino.ps1` の
@@ -155,10 +171,102 @@ Scratch のブロック実行は VM のループから呼ばれるためユー�
 `requestDevice()` を一度も呼んでいないデバイスも `getDevices()` で返すため、
 ユーザ操作なしに接続できます。「つなぐ」ブロックは `true` を返します。
 
-したがって、Scratch のペリフェラル接続モーダル経由に作り替える必要はありません。
+したがって「つなぐ」ブロックだけでも接続できます。後から追加した接続モーダルは、
+このブロックを置き換えるものではなく、接続経路を増やすものです（次項）。
 
 なお uiap-hid-web は全ページ `requestDevice()` のみで `getDevices()` を使っていないため、
 この経路はサイト側では一度も踏まれていません。この拡張が初めて通した経路です。
+
+### 🔘 ステータスボタンと接続モーダル
+
+Scratch 標準のハードウェア拡張と同じ接続フローに対応しています。
+`showStatusButton` と `runtime.registerPeripheralExtension()` で
+Scratch VM の Peripheral Extension API に繋いであります。
+
+- 拡張機能一覧で UIAPduino を選ぶと、接続モーダルが自動的に開いて検索が始まります
+- ブロックパレットのカテゴリ見出しに接続状態ボタンが出ます（未接続なら「!」）
+- 「!」をクリックすると同じモーダルが開き、接続をやり直せます
+- 接続済みのボタンからは状態の確認と切断ができます
+
+**機器の一覧は出しません。** Bluetooth 機器と違い UIAPduino は 1 台だけを前提とし、
+Electron 側が該当デバイスを自動選択するため、一覧に 1 台だけ出して
+もう一度選ばせる操作を省いています。検索画面から直接接続済み画面へ進みます。
+
+接続に失敗したときは「デバイスが見つかりません」になります。失敗の理由
+（デバイスなし・open 失敗・PING 無応答・バージョン不一致など）は
+開発者コンソールに出ます。Scratch GUI 3.29 の接続エラー画面は Scratch Link 用の
+文言が固定で入っており、WebHID には誤案内になるため使っていません。
+
+既存の「つなぐ」ブロックはそのまま残してあります。opcode も変えていないので
+既存のプロジェクトはそのまま読めます。ブロックで接続した場合も
+ステータスボタンは接続済みに変わります。
+
+### 🌐 GUI 側の日本語について
+
+日本語は **2 か所に分かれています。**
+
+| 表示場所 | 訳文のありか |
+|---|---|
+| ブロックパレットの文字列 | `scratch-vm/.../scratch3_uiapduino/index.js` の `message` 定数 |
+| 拡張機能一覧のカード・接続モーダル | `scratch-gui/src/lib/libraries/extensions/uiapduino/messages.js` |
+
+後者がややこしいところです。`index.jsx` にあるのは `FormattedMessage` の `id` だけで、
+`gui.*` の訳文は上流の **`scratch-l10n` パッケージ**から供給されます。
+これは Transifex から生成される別リポジトリの成果物で、`npm install` のたびに
+上書きされるため、`gui.extension.uiapduino.*` を直接書き足すことはできません。
+実際、固定版の `editor-msgs.js` に日本語は 758 件ありますが、
+UIAPduino の ID は 1 件もありません。
+
+そこで訳文をこのリポジトリ側に持ち、`src/reducers/locales.js` で上流のメッセージに
+重ねています。`ja` と `ja-Hira` を用意していて、それ以外のロケールでは
+`index.jsx` の `defaultMessage`（英語）が出ます。
+`defaultMessage` に日本語を書かないのは、未翻訳のロケール全部に日本語が出てしまうためです。
+
+USB を抜いたときの警告文は上流に訳があるので、この対応なしで日本語になります。
+
+### 🖼 接続モーダルの画像サイズ
+
+**接続モーダルの画像は、あらかじめ小さく作っておく必要があります。**
+
+上流の `connection-modal.css` は画像のサイズ指定をコメントアウトしているため、
+画像は**原寸で表示されます**。置き場所の `.activityArea` は高さ 165px、
+モーダルの幅は 480px しかありません。
+
+一覧用の `uiapduino.png` (600x372) をそのまま渡すと枠を大きくはみ出し、
+「接続しました」の文言やボタンの上に重なります。透過画像だと下の要素が
+透けて見えるので気づきにくいのですが、はみ出し自体は透過の有無に関係なく起きています。
+
+そのため接続モーダルには専用の `uiapduino-illustration.png` (266x165) を使っています。
+**高さは `.activityArea` と同じ 165px ちょうど**にしてください。
+
+内側の余白 (padding 0.5rem) を引いた 149px で作ると、上下に 8px ずつ背景色の帯が出ます。
+165px にすると余白の分まで覆うので帯が消えます
+（`.activityArea` は `overflow` を指定しておらず、flex の中央寄せで上下へ均等にはみ出すため）。
+
+全幅 (480x165) にすると左右の帯も消えますが、元絵の縦を 44% 切り落とすことになり、
+さらに接続バッジが `left: -15px` で絵の左外に出るため、
+`.modal-content` の `overflow: hidden` で見切れます。左右の帯は残す方が無難です。
+
+上流の画像も micro:bit が 116x95、EV3 が 92x128、WeDo 2.0 が 108x48 と、
+いずれも枠に収まる大きさで用意されています。
+
+### 🔵 接続バッジを Bluetooth から USB に変えている
+
+接続中・接続済みの画面では、機器の絵の右上に小さなバッジが重なります。
+上流の `connecting-step.jsx` と `connected-step.jsx` は
+**Bluetooth マークを無条件で描画**しており、拡張機能ごとに切り替える仕組みがありません。
+UIAPduino は WebHID なので、そのままだと嘘の表示になります。
+
+そこで extension data に `connectionBadgeIconURL` を追加し、
+指定があればそれを、無ければ従来どおり Bluetooth マークを出すようにしています。
+
+**CSS で一律に消す方法は採っていません。** `display: none` で消せば 1 ファイルで済みますが、
+micro:bit・EV3・WeDo 2.0・Go Direct のモーダルからもマークが消えます。
+それらは Scratch Link を使う本物の Bluetooth 機器なので、表示を壊してはいけません。
+
+バッジの絵は上流の `bluetooth-white.svg` に合わせて **20x20 の白 1 色**です。
+`.bluetooth-connected-icon` は padding 5px の丸の中に置かれるため、この寸法から外れると収まりません。
+文字入りの図案は 20px では読めないので使えません。
 
 ### USB を抜いたとき
 
@@ -170,8 +278,10 @@ Scratch のブロック実行は VM のループから呼ばれるためユー�
 
 `uiapduinoProcessor` は `disconnect` を購読し、自分が使っているデバイスなら
 接続状態を捨てて実行待ちのコマンドをすべて reject します。
-抜いた後は「つながっている」が false になるので、
-**挿し直したら「つなぐ」ブロックをもう一度実行してください。**
+そのうえで Scratch へ切断と接続喪失の両方を通知するので、
+ステータスボタンが「!」に戻り、接続が切れた旨の警告も表示されます。
+
+**挿し直したら「!」をクリックするか、「つなぐ」ブロックをもう一度実行してください。**
 自動再接続はしません。
 
 ### ⚠ 権限ハンドラの注意点
