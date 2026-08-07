@@ -1,0 +1,15 @@
+# 行末の扱いを、使う git の設定に依存させない。
+#
+# このリポジトリ内のテキストは全て LF で保存する。作業ツリーへ取り出すときの
+# 変換は core.autocrlf に任せる（Windows なら CRLF になる）。
+#
+# これが無いと、core.autocrlf を持たない git（別のターミナルや GUI）で
+# git add したときに CRLF のまま入り、中身は 1 バイトも変わっていないのに
+# 全行が差分として出る。2026-08-07 に実際に起きた。
+* text=auto
+
+# 画像は変換しない。text=auto の自動判定でも弾かれるが、明示しておく。
+*.png binary
+*.jpg binary
+*.ico binary
+*.zip binary
