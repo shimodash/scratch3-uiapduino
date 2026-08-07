@@ -88,7 +88,13 @@ if (Test-Path "scratch-gui") {
 # Linux の `ln -s ../../scratch-gui scratch-gui` 相当。
 # SymbolicLink は「開発者モード」有効か管理者権限が必要だが、
 # ディレクトリジャンクションなら一般ユーザ権限で作成でき、npm からは同じように扱われる。
-New-Item -ItemType Junction -Path "scratch-gui" -Target "..\..\scratch-gui" | Out-Null
+#
+# -Target には必ず絶対パスを渡すこと。PowerShell 7 は相対パスを受け付けず
+#     Creating a junction requires an absolute path for the target.
+# で止まる。Windows PowerShell 5.1 は相対パスでも通ってしまうので、
+# 5.1 だけで試していると気づけない (2026-08-07 に 7 で実際に踏んだ)。
+$guiPath = (Resolve-Path "..\..\scratch-gui").Path
+New-Item -ItemType Junction -Path "scratch-gui" -Target $guiPath | Out-Null
 
 Pop-Location  # node_modules
 Pop-Location  # scratch-desktop

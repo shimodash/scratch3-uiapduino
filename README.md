@@ -1171,6 +1171,10 @@ npm v7 以降は peerDependencies が厳格なため `react-responsive@5.x` が
   ビルドスクリプトは `electron-builder` を直接呼んで NSIS だけを作ります。
 - **PowerShell の文字コード**: 日本語コメントを含む `.ps1` は **UTF-8 BOM 付き**で
   保存してください。BOM が無いと PowerShell 5.1 が cp932 として読み、構文エラーになります。
+- **PowerShell のバージョン**: Windows PowerShell 5.1 と PowerShell 7 のどちらでも動きます。
+  ジャンクションの作成だけは 7 が `-Target` に絶対パスを要求するため、
+  スクリプトは絶対パスを渡しています（5.1 は相対パスでも通るので、5.1 だけで試すと
+  この違いに気づけません）。
 - **コア数の多い機械での Terser クラッシュ**（ビルドスクリプトが対処済み）:
   素の状態では 92% の Terser で
   `spawn UNKNOWN` / `node_platform.cc:61: Assertion (0) == (uv_thread_create(...)) failed`
