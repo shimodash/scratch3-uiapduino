@@ -542,8 +542,8 @@ Shift の出し入れが増えて、差し引き 96 バイト増えている。
 - eslint は既存コードの時点で通っていない（`no-console` と、`'ja-Hira'` を含む
   メッセージ表の `quote-props`、`uiapduinoProcessor.js` の `prefer-template` /
   `valid-jsdoc`）。**新種の違反を増やさなければ十分**
-- `Scratch-UIAPduino-*-sketch.zip` は**どのビルドスクリプトも生成していない。**
-  手作業のものが残るため、`.ino` を変えたら取り残される
+- `Scratch-UIAPduino-*-sketch.zip` は**ビルドスクリプトが作る**（2026-08-07 に組み込んだ）。
+  それ以前は手作業だったため、`.ino` を変えても古い zip が残り続けていた
 
 ---
 

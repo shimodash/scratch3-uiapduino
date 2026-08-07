@@ -1064,9 +1064,22 @@ curl -o build-scratch3-uiapduino.ps1 https://raw.githubusercontent.com/tarosay/s
 ```
 scratch-desktop/dist/
   Scratch-UIAPduino-3.29.1-Setup.exe        … インストーラ (約 163 MB)
-  win-ia32-unpacked/                        … インストール不要版 (約 341 MB)
+  Scratch-UIAPduino-3.29.1-portable.zip     … インストール不要版 (約 190 MB)
+  Scratch-UIAPduino-3.29.1-sketch.zip       … デバイス側スケッチ (約 10 KB)
+  win-ia32-unpacked/                        … インストール不要版の中身 (約 341 MB)
     Scratch UIAPduino.exe
     resources/  locales/  *.dll  ...
+```
+
+`sketch.zip` には `ScratchUiapduino/` フォルダごと（`.ino` と `sketch.yaml`）が入ります。
+Arduino IDE は `.ino` と同じ名前のフォルダに入っていることを要求するためです。
+
+**この zip はビルドのたびに作り直されます。** 以前は手作業だったので、`.ino` を
+変えても古い zip が残り続けていました。ビルド時に `.ino` から `PROTOCOL_VERSION` を
+読んで表示するので、基板に焼くべき版が取り違いなく分かります。
+
+```
+>>> dist\Scratch-UIAPduino-3.29.1-sketch.zip (protocol 5)
 ```
 
 ディレクトリ名は `win-unpacked` ではなく **`win-ia32-unpacked`** です。

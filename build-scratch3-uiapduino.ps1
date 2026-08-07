@@ -7,8 +7,9 @@
 # 違いは overlay する拡張が UIAPduino である点と、
 # scratch-desktop の main プロセスにも WebHID 用のパッチを当てる点。
 #
-# 成果物: scratch-desktop\dist\Scratch <version> Setup.exe  (NSIS インストーラ)
-#         scratch-desktop\dist\win-unpacked\Scratch 3.exe   (インストール不要の実行ファイル)
+# 成果物: scratch-desktop\dist\Scratch-UIAPduino-<version>-Setup.exe     (NSIS インストーラ)
+#         scratch-desktop\dist\Scratch-UIAPduino-<version>-portable.zip  (インストール不要版)
+#         scratch-desktop\dist\Scratch-UIAPduino-<version>-sketch.zip    (デバイス側スケッチ)
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
@@ -232,7 +233,37 @@ Remove-Item Env:CSC_LINK, Env:CSC_KEY_PASSWORD, Env:WIN_CSC_LINK, Env:WIN_CSC_KE
 # zip   … インストール不要版（インストール権限が無い環境向け）
 Invoke-Checked ".\node_modules\.bin\electron-builder.cmd" @("--windows", "nsis:ia32", "zip:ia32")
 
-Get-ChildItem dist -File -Filter *.exe |
+# --- デバイス側スケッチの zip ---
+#
+# 以前は手作業で作っていたため、.ino を変えても古い zip が残り続けた。
+# アプリと一緒に配るものなので、同じビルドで作る。
+#
+# Arduino IDE は .ino と同じ名前のフォルダに入っていることを要求するので、
+# フォルダごと固める（中身だけを固めてはいけない）。
+#
+# ⚠ プロトコルのバージョンが基板とアプリの対応を決める。
+#   ファイル名には出ないので、ここで表示して取り違えに気づけるようにする。
+
+# overlay でビルドディレクトリ直下に置かれる。ここは scratch-desktop の中なので 1 つ上。
+$sketchDir = "..\sketches\ScratchUiapduino"
+if (-not (Test-Path $sketchDir)) {
+    throw "スケッチが見つかりません: $sketchDir (overlay が効いていない可能性があります)"
+}
+
+$ino = Join-Path $sketchDir "ScratchUiapduino.ino"
+if ((Get-Content $ino -Raw) -notmatch '#define\s+PROTOCOL_VERSION\s+(\d+)') {
+    throw "PROTOCOL_VERSION を $ino から読めません"
+}
+$protocol = $Matches[1]
+
+$version    = (Get-Content "package.json" -Raw | ConvertFrom-Json).version
+$sketchZip  = "dist\Scratch-UIAPduino-$version-sketch.zip"
+
+Compress-Archive -Path $sketchDir -DestinationPath $sketchZip -Force
+Write-Host ">>> $sketchZip (protocol $protocol)" -ForegroundColor Cyan
+
+Get-ChildItem dist -File |
+    Where-Object { $_.Extension -in '.exe', '.zip' } |
     Select-Object Name, @{n = 'MB'; e = { [math]::Round($_.Length / 1MB, 1) } } |
     Format-Table
 
