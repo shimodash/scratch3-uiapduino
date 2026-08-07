@@ -66,3 +66,15 @@ ignore/
 !/scratch-desktop/src/main
 /scratch-desktop/src/main/*
 !/scratch-desktop/src/main/index.js
+
+# --- Xcratch 版 --------------------------------------------------------
+# src/vm の下は setup-dev.mjs が張るリンクと sync-block.mjs が置く複製で、
+# 実体は scratch-vm 側にある。追跡すると中身が二重に入る。
+#
+# dist/ も追跡しない。配るのは docs/ に置いたものだけで、
+# dist/ はその手前の中間成果物。両方持つと同じ .mjs が git に二重に入る。
+/xcratch/node_modules/
+/xcratch/dist/
+/xcratch/src/vm/extension-support
+/xcratch/src/vm/util
+/xcratch/src/vm/extensions/block

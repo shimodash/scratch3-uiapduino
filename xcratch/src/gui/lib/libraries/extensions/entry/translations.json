@@ -1,0 +1,17 @@
+{
+  "en": {
+    "uiapduino.entry.name": "UIAPduino",
+    "uiapduino.entry.description": "Create your own controller! Chrome or Edge is required to connect to UIAPduino.",
+    "uiapduino.entry.connectingMessage": "Connecting to UIAPduino"
+  },
+  "ja": {
+    "uiapduino.entry.name": "UIAPduino",
+    "uiapduino.entry.description": "自分だけのコントローラーを作ってみよう。UIAPduino につなぐには Chrome か Edge が必要です。",
+    "uiapduino.entry.connectingMessage": "UIAPduinoに接続中"
+  },
+  "ja-Hira": {
+    "uiapduino.entry.name": "UIAPduino",
+    "uiapduino.entry.description": "じぶんだけのコントローラーをつくってみよう。UIAPduino に つなぐには Chrome か Edge が ひつようです。",
+    "uiapduino.entry.connectingMessage": "UIAPduinoにせつぞくちゅう"
+  }
+}
