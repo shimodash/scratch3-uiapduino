@@ -2,9 +2,23 @@
 
 Scratch 3.0 から **UIAPduino** を USB-HID (WebHID) で操作する拡張機能です。
 
-構成は [scratch3-tello](https://github.com/tarosay/scratch3-tello) と同じ **オーバーレイ方式** です。
-このリポジトリ単体では動きません。上流の scratch-vm / scratch-gui / scratch-desktop を
-clone した上に、このリポジトリのファイルを被せてビルドします。
+**使い方は 2 通りあります。ブロックの実装は同じものを共有しています。**
+
+| | 使い方 | 中身 |
+|---|---|---|
+| **[Xcratch](https://xcratch.github.io/) 版** | 下の URL を「拡張機能を追加 → Extension Loader」に入れる | インストール不要。Chrome か Edge が要る |
+| **デスクトップ版** | インストーラを入れる | Scratch Desktop に組み込んだもの |
+
+```
+https://tarosay.github.io/scratch3-uiapduino/uiapduino.mjs
+```
+
+Xcratch 版の作り方は [`xcratch/README.md`](xcratch/README.md) にあります。
+
+デスクトップ版の構成は [scratch3-tello](https://github.com/tarosay/scratch3-tello) と同じ
+**オーバーレイ方式** です。そちらはこのリポジトリ単体では動きません。上流の
+scratch-vm / scratch-gui / scratch-desktop を clone した上に、このリポジトリのファイルを
+被せてビルドします。
 
 ---
 
@@ -26,6 +40,8 @@ clone した上に、このリポジトリのファイルを被せてビルド�
 | ビルド | Windows で通過。インストーラ生成まで確認済み |
 | アイコン | 差し替え済み（カード 600x372 / 小アイコン 80x80） |
 | ビルドスクリプト | scratch3-tello の実績あるものを流用 |
+| **Xcratch 版** | **実機確認済み**（読み込み・日本語・接続モーダル・接続・LED・切断・再接続） |
+| Xcratch 版の非対応ブラウザ | WebHID の無いブラウザでは説明 3 行だけを出す。**Firefox で確認済み** |
 
 **ピン操作のブロックは実機で確認済みです。** そのほか以下も確認しています。
 
@@ -101,7 +117,12 @@ clone した上に、このリポジトリのファイルを被せてビルド�
 | `sketches/ScratchUiapduino/ScratchUiapduino.ino` | デバイス側スケッチ |
 | `sketches/ScratchUiapduino/sketch.yaml` | ボードと Tools メニューの設定 |
 | `build-scratch3-uiapduino.ps1` | ビルドスクリプト |
+| `xcratch/` | Xcratch 版のビルド環境（詳細は [`xcratch/README.md`](xcratch/README.md)） |
+| `docs/uiapduino.mjs` | **配っている Xcratch 版のモジュール**。GitHub Pages が `/docs` を公開している |
 | `README.md` / `LICENSE` | このファイルとライセンス |
+
+`xcratch/` の下にブロックの実装はありません。ビルドのたびに上の 2 ファイルを複製して
+使っています。**直すのは常に `scratch-vm/src/extensions/scratch3_uiapduino/` の方です。**
 
 `index.js` と `uiapduinoProcessor.js` の分離は Tello 拡張と同じで、
 ブロック層は通信方式を一切知りません。プロトコルを変える場合も
