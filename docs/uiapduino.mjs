@@ -3034,6 +3034,35 @@ var REPORT_ID = 0;
  */
 var PROTOCOL_VERSION = 5;
 
+/**
+ * この拡張機能が相手にするスケッチの版。
+ *
+ * UIAPduino は Flash が 16KB しかなく、機能を全部は載せられない。
+ * 「HID の代わりに I2C を積んだ版」のような派生が出る前提で、
+ * 基板がどの版を焼かれているかを PING の応答の上位バイトで名乗る。
+ *
+ * これが無いと、別の版が焼かれた基板に繋いだとき
+ * 「プロトコルのバージョンが違います」としか言えない。本当の原因は
+ * 版違いなのに、利用者は同じスケッチを書き込み直してまた失敗する。
+ *
+ * sketches/ScratchUiapduino の SKETCH_VARIANT と同じ値でなければならない。
+ * @type {number}
+ */
+var SKETCH_VARIANT = 0;
+
+/**
+ * 版の番号と名前。エラーの文面に出す。
+ *
+ * ⚠ 0 は「版を名乗らない世代のスケッチ」と同じ値になる。
+ *   あちらは PROTOCOL_VERSION だけを 1 バイトで返すので上位バイトが 0 になり、
+ *   結果として HID 版として扱われる。既に配った基板を弾かないための約束なので、
+ *   0 の意味は変えないこと。新しい版は 1 から順に振る。
+ * @type {object}
+ */
+var VARIANT = {
+  0: 'HID 版 (キーボード / マウス / ピン操作)'
+};
+
 /** ハンドシェイクの結果を表す特別な値 */
 var HANDSHAKE = {
   /** PING に応答が無かった (スケッチ未書き込み / 別のスケッチ) */
@@ -3066,6 +3095,13 @@ var REASON = {
   HANDSHAKE_NO_RESPONSE: 'handshake-no-response',
   /** プロトコルのバージョンが一致しない (旧世代スケッチを含む) */
   PROTOCOL_MISMATCH: 'protocol-mismatch',
+  /**
+   * 別の版のスケッチが焼かれている。
+   *
+   * バージョン不一致とは分けてある。書き込み直せば解決するあちらと違い、
+   * こちらは「その版に対応した別の拡張機能を使う」が正解のこともあるため。
+   */
+  VARIANT_MISMATCH: 'variant-mismatch',
   /** 上記以外の予期しない失敗 */
   UNKNOWN: 'unknown'
 };
@@ -3561,7 +3597,7 @@ var UiapduinoProcessor = /*#__PURE__*/function () {
     key: "_checkVersion",
     value: (function () {
       var _checkVersion2 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime.mark(function _callee3() {
-        var version, reflash;
+        var raw, reflash, version, variant, found, want;
         return _regeneratorRuntime.wrap(function (_context3) {
           while (1) switch (_context3.prev = _context3.next) {
             case 0:
@@ -3569,25 +3605,17 @@ var UiapduinoProcessor = /*#__PURE__*/function () {
               _context3.next = 1;
               return this._handshakeRequest(CMD.PING);
             case 1:
-              version = _context3.sent;
+              raw = _context3.sent;
               _context3.next = 3;
               break;
             case 2:
               _context3.prev = 2;
               _context3["catch"](0);
-              version = HANDSHAKE.NO_RESPONSE;
+              raw = HANDSHAKE.NO_RESPONSE;
             case 3:
-              if (!(version === PROTOCOL_VERSION)) {
-                _context3.next = 4;
-                break;
-              }
-              return _context3.abrupt("return", {
-                ok: true
-              });
-            case 4:
               reflash = 'sketches/ScratchUiapduino を書き込み直してください。';
-              if (!(version === HANDSHAKE.NO_RESPONSE)) {
-                _context3.next = 5;
+              if (!(raw === HANDSHAKE.NO_RESPONSE)) {
+                _context3.next = 4;
                 break;
               }
               console.error('[uiapduino] デバイスが応答しません。' + "\u30B9\u30B1\u30C3\u30C1\u304C\u66F8\u304D\u8FBC\u307E\u308C\u3066\u3044\u306A\u3044\u304B\u3001\u5225\u306E\u30B9\u30B1\u30C3\u30C1\u304C\u52D5\u3044\u3066\u3044\u307E\u3059\u3002".concat(reflash));
@@ -3595,17 +3623,49 @@ var UiapduinoProcessor = /*#__PURE__*/function () {
                 ok: false,
                 reason: REASON.HANDSHAKE_NO_RESPONSE
               });
-            case 5:
-              if (version === HANDSHAKE.LEGACY) {
-                console.error('[uiapduino] スケッチが古すぎます (バージョンを返しません)。' + reflash);
-              } else {
-                console.error("[uiapduino] \u30D7\u30ED\u30C8\u30B3\u30EB\u306E\u30D0\u30FC\u30B8\u30E7\u30F3\u304C\u9055\u3044\u307E\u3059\u3002" + "\u30C7\u30D0\u30A4\u30B9=".concat(version, " / \u3053\u306E\u62E1\u5F35\u6A5F\u80FD=").concat(PROTOCOL_VERSION, "\u3002").concat(reflash));
+            case 4:
+              if (!(raw === HANDSHAKE.LEGACY)) {
+                _context3.next = 5;
+                break;
               }
+              console.error('[uiapduino] スケッチが古すぎます (バージョンを返しません)。' + reflash);
               return _context3.abrupt("return", {
                 ok: false,
                 reason: REASON.PROTOCOL_MISMATCH
               });
+            case 5:
+              // 下位バイト = プロトコルのバージョン、上位バイト = どの版のスケッチか。
+              // 1 バイトしか返さない世代のスケッチは上位が 0 になり、HID 版として扱われる。
+              version = raw & 0xFF;
+              variant = raw >> 8 & 0xFF; // 版の違いを先に見る。版が違えばコマンドの意味ごと違うので、
+              // バージョン番号の一致不一致を語っても利用者の役に立たない。
+              if (!(variant !== SKETCH_VARIANT)) {
+                _context3.next = 6;
+                break;
+              }
+              found = VARIANT[variant] || "\u756A\u53F7 ".concat(variant, " \u306E\u7248");
+              want = VARIANT[SKETCH_VARIANT];
+              console.error("[uiapduino] \u3053\u306E\u57FA\u677F\u306B\u306F".concat(found, "\u306E\u30B9\u30B1\u30C3\u30C1\u304C\u713C\u304B\u308C\u3066\u3044\u307E\u3059\u3002") + "\u3053\u306E\u62E1\u5F35\u6A5F\u80FD\u304C\u4F7F\u3048\u308B\u306E\u306F".concat(want, "\u3067\u3059\u3002") + 'それぞれの版に対応した拡張機能を使うか、スケッチを書き込み直してください。');
+              return _context3.abrupt("return", {
+                ok: false,
+                reason: REASON.VARIANT_MISMATCH,
+                variant: variant
+              });
             case 6:
+              if (!(version === PROTOCOL_VERSION)) {
+                _context3.next = 7;
+                break;
+              }
+              return _context3.abrupt("return", {
+                ok: true
+              });
+            case 7:
+              console.error('[uiapduino] プロトコルのバージョンが違います。' + "\u30C7\u30D0\u30A4\u30B9=".concat(version, " / \u3053\u306E\u62E1\u5F35\u6A5F\u80FD=").concat(PROTOCOL_VERSION, "\u3002").concat(reflash));
+              return _context3.abrupt("return", {
+                ok: false,
+                reason: REASON.PROTOCOL_MISMATCH
+              });
+            case 8:
             case "end":
               return _context3.stop();
           }

@@ -66,6 +66,35 @@ const REPORT_ID = 0;
  */
 const PROTOCOL_VERSION = 5;
 
+/**
+ * この拡張機能が相手にするスケッチの版。
+ *
+ * UIAPduino は Flash が 16KB しかなく、機能を全部は載せられない。
+ * 「HID の代わりに I2C を積んだ版」のような派生が出る前提で、
+ * 基板がどの版を焼かれているかを PING の応答の上位バイトで名乗る。
+ *
+ * これが無いと、別の版が焼かれた基板に繋いだとき
+ * 「プロトコルのバージョンが違います」としか言えない。本当の原因は
+ * 版違いなのに、利用者は同じスケッチを書き込み直してまた失敗する。
+ *
+ * sketches/ScratchUiapduino の SKETCH_VARIANT と同じ値でなければならない。
+ * @type {number}
+ */
+const SKETCH_VARIANT = 0;
+
+/**
+ * 版の番号と名前。エラーの文面に出す。
+ *
+ * ⚠ 0 は「版を名乗らない世代のスケッチ」と同じ値になる。
+ *   あちらは PROTOCOL_VERSION だけを 1 バイトで返すので上位バイトが 0 になり、
+ *   結果として HID 版として扱われる。既に配った基板を弾かないための約束なので、
+ *   0 の意味は変えないこと。新しい版は 1 から順に振る。
+ * @type {object}
+ */
+const VARIANT = {
+    0: 'HID 版 (キーボード / マウス / ピン操作)'
+};
+
 /** ハンドシェイクの結果を表す特別な値 */
 const HANDSHAKE = {
     /** PING に応答が無かった (スケッチ未書き込み / 別のスケッチ) */
@@ -98,6 +127,13 @@ const REASON = {
     HANDSHAKE_NO_RESPONSE: 'handshake-no-response',
     /** プロトコルのバージョンが一致しない (旧世代スケッチを含む) */
     PROTOCOL_MISMATCH: 'protocol-mismatch',
+    /**
+     * 別の版のスケッチが焼かれている。
+     *
+     * バージョン不一致とは分けてある。書き込み直せば解決するあちらと違い、
+     * こちらは「その版に対応した別の拡張機能を使う」が正解のこともあるため。
+     */
+    VARIANT_MISMATCH: 'variant-mismatch',
     /** 上記以外の予期しない失敗 */
     UNKNOWN: 'unknown'
 };
@@ -495,33 +531,52 @@ class UiapduinoProcessor {
      * @returns {Promise<{ok: boolean, reason: ?string}>} 一致していれば {ok: true}
      */
     async _checkVersion () {
-        let version;
+        let raw;
         try {
-            version = await this._handshakeRequest(CMD.PING);
+            raw = await this._handshakeRequest(CMD.PING);
         } catch (e) {
-            version = HANDSHAKE.NO_RESPONSE;
+            raw = HANDSHAKE.NO_RESPONSE;
         }
 
-        if (version === PROTOCOL_VERSION) return {ok: true};
-
         const reflash = 'sketches/ScratchUiapduino を書き込み直してください。';
-        if (version === HANDSHAKE.NO_RESPONSE) {
+        if (raw === HANDSHAKE.NO_RESPONSE) {
             console.error(
                 '[uiapduino] デバイスが応答しません。' +
                 `スケッチが書き込まれていないか、別のスケッチが動いています。${reflash}`
             );
             return {ok: false, reason: REASON.HANDSHAKE_NO_RESPONSE};
         }
-        if (version === HANDSHAKE.LEGACY) {
+        if (raw === HANDSHAKE.LEGACY) {
             console.error(
                 '[uiapduino] スケッチが古すぎます (バージョンを返しません)。' + reflash
             );
-        } else {
-            console.error(
-                `[uiapduino] プロトコルのバージョンが違います。` +
-                `デバイス=${version} / この拡張機能=${PROTOCOL_VERSION}。${reflash}`
-            );
+            return {ok: false, reason: REASON.PROTOCOL_MISMATCH};
         }
+
+        // 下位バイト = プロトコルのバージョン、上位バイト = どの版のスケッチか。
+        // 1 バイトしか返さない世代のスケッチは上位が 0 になり、HID 版として扱われる。
+        const version = raw & 0xFF;
+        const variant = (raw >> 8) & 0xFF;
+
+        // 版の違いを先に見る。版が違えばコマンドの意味ごと違うので、
+        // バージョン番号の一致不一致を語っても利用者の役に立たない。
+        if (variant !== SKETCH_VARIANT) {
+            const found = VARIANT[variant] || `番号 ${variant} の版`;
+            const want = VARIANT[SKETCH_VARIANT] || `番号 ${SKETCH_VARIANT} の版`;
+            console.error(
+                `[uiapduino] この基板には${found}のスケッチが焼かれています。` +
+                `この拡張機能が使えるのは${want}です。` +
+                'それぞれの版に対応した拡張機能を使うか、スケッチを書き込み直してください。'
+            );
+            return {ok: false, reason: REASON.VARIANT_MISMATCH, variant: variant};
+        }
+
+        if (version === PROTOCOL_VERSION) return {ok: true};
+
+        console.error(
+            '[uiapduino] プロトコルのバージョンが違います。' +
+            `デバイス=${version} / この拡張機能=${PROTOCOL_VERSION}。${reflash}`
+        );
         return {ok: false, reason: REASON.PROTOCOL_MISMATCH};
     }
 
@@ -896,4 +951,4 @@ class UiapduinoProcessor {
 // ESM の名前付きエクスポートはクラスには載らないので、
 // import UiapduinoProcessor, {CMD} from './uiapduinoProcessor'; と受ける。
 export default UiapduinoProcessor;
-export {CMD, MOUSE_BUTTON, REASON, MARKER, RSP, PROTOCOL_VERSION};
+export {CMD, MOUSE_BUTTON, REASON, MARKER, RSP, PROTOCOL_VERSION, SKETCH_VARIANT, VARIANT};
