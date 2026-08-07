@@ -15,9 +15,23 @@
 import ArgumentType from '../../extension-support/argument-type';
 import BlockType from '../../extension-support/block-type';
 import Cast from '../../util/cast';
-import formatMessage from 'format-message';
+import defaultFormatMessage from 'format-message';
 
 import UiapduinoProcessor, {CMD, MOUSE_BUTTON} from './uiapduinoProcessor';
+
+/**
+ * 表示中の言語を知るための formatMessage。
+ *
+ * デスクトップ版では、拡張も GUI も同じ format-message を共有しているので
+ * import したものがそのまま使える。
+ *
+ * Xcratch では拡張が 1 枚の .mjs に固められ、その中の format-message は
+ * GUI のものとは別インスタンスになる。そのままだと locale が既定値のままになり、
+ * 日本語を選んでいてもブロックが英語で出る。Xcratch はこれを避けるために
+ * 読み込み時に自分の formatMessage を渡してくるので、来たら差し替える。
+ * @type {Function}
+ */
+let formatMessage = defaultFormatMessage;
 
 /**
  * 拡張機能 ID。
@@ -27,6 +41,25 @@ import UiapduinoProcessor, {CMD, MOUSE_BUTTON} from './uiapduinoProcessor';
  * @type {string}
  */
 const EXTENSION_ID = 'uiapduino';
+
+/**
+ * Xcratch にモジュールとして読み込ませたときの、このモジュール自身の URL。
+ *
+ * Xcratch は読み込み時に実際の URL をここへ書き込み、プロジェクトにも保存する。
+ * 次にそのプロジェクトを開いたとき、この URL から拡張を読み直す。
+ * ここに書いてある値は、書き込まれなかった場合の保険。
+ *
+ * ⚠ この URL は公開したら二度と変えられない。保存されたプロジェクトが
+ *   ここから拡張機能を読み直すため、変えると古い作品が開けなくなる。
+ *
+ *   だから「それが何か」だけで組み立ててある。ビルドの都合 (xcratch/ や dist/) は
+ *   入れていない。中の構成を変えても、成果物をこの置き場へ持ってくれば URL は動かない。
+ *   実体は docs/uiapduino.mjs で、GitHub Pages の公開元を /docs にしてある。
+ *
+ *   xcratch/src/gui/.../entry/index.jsx の extensionURL と必ず同じ値にすること。
+ * @type {string}
+ */
+let extensionURL = 'https://tarosay.github.io/scratch3-uiapduino/uiapduino.mjs';
 
 /**
  * ブロック左端に表示するアイコン (data URI)。
@@ -167,6 +200,30 @@ const KEY_MENU_ITEMS = [
  * PWM を出せるのは Tools → PWM = TIM2 Default のとき D0 / D2 / D5 / D6 / D12 のみ。
  */
 const message = {
+    // WebHID を持たないブラウザで開かれたときに、パレットの先頭へ出す 1 行。
+    //
+    // Firefox や Safari には WebHID が無い。それでも拡張は追加できてブロックも並び、
+    // 接続だけが失敗する。しかも接続モーダルは Xcratch の持ち物で、上流の文言は
+    // 「デバイスが見つかりませんでした」または「Scratch Link をインストールしてください」
+    // しか出せない。原因 (WebHID is not available) は console にしか出ない。
+    //
+    // つまり利用者から見ると、正しく追加できたのに繋がらず、理由がどこにも出ない。
+    // getInfo() が返すブロックの一覧だけはこちらの持ち物なので、そこに出す。
+    browserNotSupported: {
+        ja: '⚠ このブラウザでは UIAPduino につなげません',
+        'ja-Hira': '⚠ このブラウザでは UIAPduino に つなげません',
+        en: '⚠ This browser cannot connect to UIAPduino'
+    },
+    browserNotSupportedWhy: {
+        ja: 'このブラウザに WebHID という しくみが ないためです',
+        'ja-Hira': 'このブラウザに WebHID という しくみが ないためです',
+        en: 'It does not support WebHID'
+    },
+    browserNotSupportedHow: {
+        ja: '同じ URL を Chrome か Edge で開くと つながります',
+        'ja-Hira': 'おなじ URL を Chrome か Edge で ひらくと つながります',
+        en: 'Open the same URL in Chrome or Edge to connect'
+    },
     connect: {
         ja: 'UIAPduino につなぐ',
         'ja-Hira': 'UIAPduino につなぐ',
@@ -335,12 +392,42 @@ const message = {
  * @constructor
  */
 class Scratch3Uiapduino {
+    /**
+     * Xcratch がモジュール読み込み時に呼ぶ。GUI の formatMessage を受け取る。
+     * デスクトップ版では誰も呼ばないので、import したものが使われ続ける。
+     * @param {Function} formatter - GUI 側の formatMessage
+     */
+    static set formatMessage (formatter) {
+        if (formatter) formatMessage = formatter;
+    }
+
+    /**
+     * Xcratch がモジュール読み込み時に、実際に読み込んだ URL を書き込む。
+     * getInfo() で返すと、プロジェクトに「どこから読めばよいか」が残る。
+     * デスクトップ版では拡張が組み込みなので、この値は使われない。
+     * @param {string} url - このモジュールの URL
+     */
+    static set extensionURL (url) {
+        if (url) extensionURL = url;
+    }
+
+    /** @returns {string} このモジュールの URL */
+    static get extensionURL () {
+        return extensionURL;
+    }
+
     constructor (runtime) {
         /**
          * The runtime instantiating this block package.
          * @type {Runtime}
          */
         this.runtime = runtime;
+
+        // Xcratch の runtime は自分の formatMessage を持っている。
+        // scratch-vm 0.2.0 (デスクトップ版) は持っていないので、そのままになる。
+        if (runtime.formatMessage) {
+            formatMessage = runtime.formatMessage;
+        }
 
         this.processor = new UiapduinoProcessor();
 
@@ -485,8 +572,11 @@ class Scratch3Uiapduino {
             this.locale = 'en';
         }
 
-        return {
+        const info = {
             id: EXTENSION_ID,
+            // Xcratch がプロジェクトに保存する読み込み元。
+            // scratch-vm 0.2.0 (デスクトップ版) はこの項目を見ないので影響しない。
+            extensionURL: extensionURL,
             name: 'UIAPduino',
             menuIconURI: menuIconURI,
             blockIconURI: blockIconURI,
@@ -823,6 +913,63 @@ class Scratch3Uiapduino {
                 }
             }
         };
+
+        // WebHID が無いブラウザなら、説明だけを出して他のブロックは出さない。
+        //
+        // 接続できない以上、ピンもキーボードもマウスも動かない。並べておくと
+        // 「置いたのに動かない」を試させることになる。接続モーダルは Xcratch の
+        // 持ち物で「デバイスが見つかりませんでした」としか言えないので、
+        // ここで止めるのが一番早く伝わる。
+        //
+        // 副作用は承知のうえで、こうすると決めてある (2026-08-08)。
+        //
+        // 保存済みのプロジェクトを非対応ブラウザで開くと、その中の UIAPduino の
+        // ブロックは定義が無い状態になり、画面ではおかしな見た目になる。
+        // それでよい。動かないブラウザで開けば動かないのは当たり前で、
+        // 中途半端に並べて「置いたのに動かない」を試させる方が不親切だから。
+        //
+        // 読み込んでもディスク上の .sb3 は変わらない。失われるとしたら、
+        // その状態で利用者が上書き保存したときだけ。
+        //
+        // だからここを「他のブロックも並べたうえで先頭に説明を足す」形へ戻さないこと。
+        // 戻すのは、上書き保存で作品が失われる事例が実際に出たときだけでよい。
+        if (typeof navigator === 'undefined' || !navigator.hid) {
+            info.blocks = [
+                'browserNotSupported',
+                'browserNotSupportedWhy',
+                'browserNotSupportedHow'
+            ].map(key => ({
+                opcode: key,
+                blockType: BlockType.COMMAND,
+                text: this._getText(key)
+            }));
+            info.menus = {};
+            // 繋げないのだから、接続状態のボタンを出しても押させるだけになる。
+            info.showStatusButton = false;
+        }
+
+        return info;
+    }
+
+    /**
+     * 非対応ブラウザで出す説明ブロックの実装。
+     *
+     * 置いてあるのは説明のためで、動作は持たない。
+     * opcode に対する実装が無いと Scratch VM が警告を出すので用意している。
+     * @returns {void}
+     */
+    browserNotSupported () {
+        // 何もしない
+    }
+
+    /** @returns {void} 説明ブロック (理由)。動作は持たない */
+    browserNotSupportedWhy () {
+        // 何もしない
+    }
+
+    /** @returns {void} 説明ブロック (対処)。動作は持たない */
+    browserNotSupportedHow () {
+        // 何もしない
     }
 
     // --- Peripheral Extension API ---------------------------------------
@@ -1437,4 +1584,7 @@ class Scratch3Uiapduino {
     }
 }
 
-export default Scratch3Uiapduino;
+// blockClass という名前でも出すこと。Xcratch のローダはこの名前で拡張本体を探す。
+// (rollup の multi-entry が entry と束ねるとき、名前付き export しか拾えない)
+// デスクトップ版は default しか見ないので、増えても影響しない。
+export {Scratch3Uiapduino as default, Scratch3Uiapduino as blockClass};
