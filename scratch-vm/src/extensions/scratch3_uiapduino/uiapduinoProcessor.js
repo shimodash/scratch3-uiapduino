@@ -889,10 +889,11 @@ class UiapduinoProcessor {
     }
 }
 
-module.exports = UiapduinoProcessor;
-module.exports.CMD = CMD;
-module.exports.MOUSE_BUTTON = MOUSE_BUTTON;
-module.exports.REASON = REASON;
-module.exports.MARKER = MARKER;
-module.exports.RSP = RSP;
-module.exports.PROTOCOL_VERSION = PROTOCOL_VERSION;
+// ESM で書く理由は index.js の冒頭を参照。
+//
+// CommonJS のときは module.exports.CMD = ... とクラスの静的プロパティに生やしていたので、
+// 取り込み側は const {CMD} = UiapduinoProcessor; と書けた。
+// ESM の名前付きエクスポートはクラスには載らないので、
+// import UiapduinoProcessor, {CMD} from './uiapduinoProcessor'; と受ける。
+export default UiapduinoProcessor;
+export {CMD, MOUSE_BUTTON, REASON, MARKER, RSP, PROTOCOL_VERSION};

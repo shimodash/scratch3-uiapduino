@@ -13,7 +13,11 @@ const builtinExtensions = {
     // but serves as a reference for loading core blocks as extensions.
     coreExample: () => require('../blocks/scratch3_core_example'),
     // These are the non-core built-in extensions.
-    uiapduino: () => require('../extensions/scratch3_uiapduino'),
+    // 他の拡張と違い ESM (export default) で書いてある。Xcratch 版と共有するため。
+    // webpack が返すのは名前空間オブジェクトなので、.default でクラス本体を取り出す。
+    // ここで受けた値は new extension(runtime) されるため、付け忘れると
+    // 「extension is not a constructor」で落ちる。
+    uiapduino: () => require('../extensions/scratch3_uiapduino').default,
     pen: () => require('../extensions/scratch3_pen'),
     wedo2: () => require('../extensions/scratch3_wedo2'),
     music: () => require('../extensions/scratch3_music'),

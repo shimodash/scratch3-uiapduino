@@ -4,13 +4,20 @@
 // ブロック定義。scratch3-tello の index.js と同じ構造。
 // 通信のことは一切知らず、uiapduinoProcessor に投げるだけ。
 
-const ArgumentType = require('../../extension-support/argument-type');
-const BlockType = require('../../extension-support/block-type');
-const Cast = require('../../util/cast');
-const formatMessage = require('format-message');
+// ⚠ このファイルと uiapduinoProcessor.js だけは ESM (import/export) で書く。
+//   scratch-vm 本体は CommonJS (require/module.exports) だが、この 2 つは
+//   Xcratch 版 (rollup) とデスクトップ版 (webpack) で共有する。
+//   webpack は両形式を読めるのに対し rollup は ESM が前提なので、
+//   ESM に寄せておけば 1 つのファイルを両方のビルドへ出せる。
+//
+//   この形式にしたことで、extension-support/extension-manager.js からの取り込みが
+//   require('...').default になっている。戻すならあちらも直すこと。
+import ArgumentType from '../../extension-support/argument-type';
+import BlockType from '../../extension-support/block-type';
+import Cast from '../../util/cast';
+import formatMessage from 'format-message';
 
-const UiapduinoProcessor = require('./uiapduinoProcessor');
-const {CMD, MOUSE_BUTTON} = UiapduinoProcessor;
+import UiapduinoProcessor, {CMD, MOUSE_BUTTON} from './uiapduinoProcessor';
 
 /**
  * 拡張機能 ID。
@@ -1430,4 +1437,4 @@ class Scratch3Uiapduino {
     }
 }
 
-module.exports = Scratch3Uiapduino;
+export default Scratch3Uiapduino;
