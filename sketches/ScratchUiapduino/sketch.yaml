@@ -20,7 +20,7 @@ profiles:
     notes: UIAPduino (HID ProMicro CH32V003) / Keyboard+Mouse+WebHID
     fqbn: UIAP_HID:ch32v:CH32V003:pnum=V14,usb=kbdweb,opt=oslto,pwm=default
     platforms:
-      - platform: UIAP_HID:ch32v (1.2.8)
+      - platform: UIAP_HID:ch32v (1.2.9)
         platform_index_url: https://raw.githubusercontent.com/tarosay/board_manager_files/main/package_uiap_hid_index.json
 
 default_profile: uiapduino

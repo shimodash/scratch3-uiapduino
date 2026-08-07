@@ -858,6 +858,38 @@ sketches/ScratchUiapduino/
   sketch.yaml            … ボードと Tools メニューの設定
 ```
 
+### 書き込み方法
+
+詳しくは Core 側の
+[README](https://github.com/tarosay/arduino_core_ch32#書き込み方法) を見てください。
+
+**1. Arduino IDE にボードを入れる（初回だけ）**
+
+`ファイル → 環境設定 → 追加のボードマネージャのURL` に次を追加します。
+
+```
+https://github.com/tarosay/board_manager_files/raw/main/package_uiap_hid_index.json
+```
+
+「ボードマネージャ」で `UIAPduino` を検索してインストールし、
+`ツール → ボード → UIAP_HID → HID ProMicro CH32V003` を選びます。
+
+> **基板はお店やネットショップで購入してください。**
+> 上で配布しているのは Arduino IDE の Core（ボード定義）で、基板そのものではありません。
+
+**2. 基板を書き込みモードにする**
+
+**基板のボタンを押しながら USB ケーブルを接続し、すぐにボタンを離します。**
+
+**3. 書き込む**
+
+`ScratchUiapduino.ino` を開いて、いつもどおり「書き込み」を実行します。
+
+**書き込み器（WCH-LinkE など）は要りません。** `Tools > Upload method` は既定の
+`minichlink` のままで構いません。プログラマの指定が無いとき minichlink は
+書き込み先を順に探し、`Found UIAPduino Pro Micro CH32V003 V1.4 Bootloader` を
+見つけて、そこへ `.bin` を USB 経由で流し込みます。
+
 ### 書き込み設定
 
 **`sketch.yaml` に固定してあるので、手で設定し直す必要はありません。**
@@ -875,9 +907,14 @@ Arduino IDE 2.x はスケッチを開いたときにこのプロファイルを�
 
 PWM の設定を間違えると `PWMMIN_REQUIRE_DEFAULT()` がコンパイル時に止めます。
 
-プラットフォームは `UIAP_HID:ch32v (1.2.8)` に固定してあります。
-再現性のためですが、**新しい版が出ても 1.2.8 が使われ続ける**点に注意してください。
+プラットフォームは `UIAP_HID:ch32v (1.2.9)` に固定してあります。
+再現性のためですが、**新しい版が出ても 1.2.9 が使われ続ける**点に注意してください。
 上げる場合は `sketch.yaml` の `platforms` を書き換えます。
+
+**固定先は実機確認に使った版と一致させること。** 以前は 1.2.8 と書いてありましたが、
+ビルドも実機確認も、どの時点でも 1.2.8 で行っていません。更新し忘れた数字が
+残っていただけです。「再現性のために固定する」と言いながら、固定先が
+一度も通っていない版では意味がありません。
 
 arduino-cli なら引数なしでビルドできます。
 
