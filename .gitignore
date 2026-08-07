@@ -1,6 +1,13 @@
 .vscode/
 .DS_Store
 
+# 作業用ファイルの置き場。どの階層にあっても追跡しない。
+#
+# 80x80 のアイコンを作る元にした高解像度の画像 (uiapduino-819.png や
+# keyboard448.png など) は、そのまま置くと 1 枚で数百 KB あるうえに
+# 完成品と紛らわしい。scratch-gui/.../uiapduino/ignore/ に寄せてある。
+ignore/
+
 !.gitignore
 !README.md
 

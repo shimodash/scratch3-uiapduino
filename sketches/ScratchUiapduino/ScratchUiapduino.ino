@@ -89,7 +89,11 @@ PWMMIN_REQUIRE_DEFAULT();
 //   1 : ピン操作のみ
 //   2 : キーボード / マウス / 非常停止を追加。USB 設定が Keyboard+Mouse+WebHID になった
 //   3 : ダブルクリックとドラッグを追加
-#define PROTOCOL_VERSION 3
+//   4 : KEY_TEXT / KEY_WRITE が押しっぱなしの修飾キーを壊さなくなった
+//       (「[Ctrl] を押しながら〔 〕」の囲みブロックのため。keyTap() を参照)
+//   5 : 大文字と記号が打てるようになった。押しっぱなしの Shift は
+//       大文字小文字を反転させる (バージョン 4 は大文字が黙って消えていた)
+#define PROTOCOL_VERSION 5
 
 // ── コマンド ID ─────────────────────────────────────────────────────────────
 // 0x01 は接続通知で予約。0x01-0x11 は uiapruby が使用中のため 0x20 以降を使う。
@@ -103,15 +107,19 @@ PWMMIN_REQUIRE_DEFAULT();
 #define CMD_PANIC         0x2F
 
 // キーボード (0x30 台)。
-// Scratch 側のブロックは段階を分けて追加するが、デバイス側は先に全部実装してある。
-// ここを後から足すとプロトコルのバージョンをもう一度上げることになり、
-// 利用者が基板を 2 回焼き直すはめになるため。
+//
+// KEY_PRESS / KEY_RELEASE は「[Ctrl] を押しながら〔 〕」の囲みブロックが
+// 中身の前後で使う。修飾キー (KEY_LEFT_CTRL 0x80 〜 KEY_LEFT_GUI 0x83) を渡す。
+//
+// 0x35 は空けてある。「修飾キーと組み合わせて押す」を 1 コマンドで行う
+// KEY_SHORTCUT を置いていたが、消した。キーボードにそんなキーは無い。
+// あるのは「キーを押す」と「修飾キーを押したままにする」だけで、
+// 組み合わせは囲みブロックが表す。
 #define CMD_KEY_TEXT        0x30
 #define CMD_KEY_WRITE       0x31
 #define CMD_KEY_PRESS       0x32
 #define CMD_KEY_RELEASE     0x33
 #define CMD_KEY_RELEASE_ALL 0x34
-#define CMD_KEY_SHORTCUT    0x35
 
 // マウス (0x40 台)。
 // 0x44 は空けてある。デバイス → Scratch のログマーカー (0x44) と同じ値で、
@@ -174,6 +182,14 @@ static uint16_t heldMs = 0;
  * どのキーかまでは覚えない。見張りが離すときは releaseAll() で全部離すため。
  */
 static bool keyHeld = false;
+
+/**
+ * Shift を押したままにしているか（KEY_PRESS で押されたぶん）。
+ *
+ * keyTap() が「押しっぱなしの Shift は大文字小文字を反転させる」を
+ * 実現するために見る。keyHeld と違って、どのキーかを区別する必要がある。
+ */
+static bool shiftHeld = false;
 
 /**
  * 応答を 1 レポート送る。uiapruby が生成するファームの rsp() と同じ。
@@ -240,6 +256,7 @@ static void releaseAllMouse() {
 static void releaseAllInput() {
   Keyboard.releaseAll();
   keyHeld = false;
+  shiftHeld = false;
   releaseAllMouse();
   // 見張りが離した直後に数えた分を残さない。
   // 残すと、次に押したときいきなり時間切れになる。
@@ -284,38 +301,142 @@ static int stepsForMove(int dx, int dy) {
 }
 
 /**
+ * ASCII 文字を「刻印どおりに押せるキー」と「Shift が要るか」に分解する。
+ *
+ * 実際のキーボードに 'H' というキーは無い。あるのは 'h' のキーで、
+ * Shift と一緒に押すと 'H' になる。ここではその対応を戻す。
+ *
+ * 表は arduino_core_ch32 の Keyboard.cpp の _toHID() と同じ組み合わせ。
+ * 片方だけ変えないこと。
+ *
+ * @param k    元の文字
+ * @param base Shift 無しで押せるキーを受け取る（特殊キーや小文字はそのまま）
+ * @return Shift が要るなら true
+ */
+static bool needsShift(uint8_t k, uint8_t *base) {
+  if (k >= 'A' && k <= 'Z') {
+    *base = (uint8_t)(k - 'A' + 'a');
+    return true;
+  }
+  static const char shifted[] = "!@#$%^&*()_+{}|:\"~<>?";
+  static const char plain[]   = "1234567890-=[]\\;'`,./";
+  for (uint8_t i = 0; shifted[i]; i++) {
+    if (k == (uint8_t)shifted[i]) {
+      *base = (uint8_t)plain[i];
+      return true;
+    }
+  }
+  *base = k;
+  return false;
+}
+
+/**
+ * キーを 1 つ押して離す。押しっぱなしの修飾キーを壊さない。
+ *
+ * ⚠ ここで Keyboard.write() を使ってはいけない。
+ *   write() は内部で
+ *       _modifier = modBit;  memset(_keys, 0, 6);  ...  releaseAll();
+ *   とレポート全体を組み立て直すので、KEY_PRESS で押したままにしてある
+ *   Ctrl や Shift が消え、さらに最後の releaseAll() で全部離れる。
+ *   「[Ctrl] を押しながら〔 〕」の中身が無言で修飾キー無しになってしまう。
+ *
+ *   press() / release() は該当のキーだけを足し引きするので、
+ *   外側で押している修飾キーがそのまま残る。
+ *
+ * 待ちは write() と同じ 20ms ずつ。USB のポーリング (10ms) に確実に拾わせるため。
+ * 10ms に縮めると "ll" のような連続する同一文字で 1 文字欠ける
+ * (arduino_core_ch32 の Keyboard.cpp のコメント)。1 文字あたり 40ms かかる。
+ * Scratch 側 index.js の _typeTimeout() がこの値を見込んでいる。
+ *
+ * ⚠ Shift は自分で押す。press() に大文字を渡してはいけない。
+ *
+ *   press('H') は _toHID() が「Shift ビットとキーコードの両方」を返すのに、
+ *       if (modBit) { _modifier |= modBit; _sendReport(); return 1; }
+ *   と修飾キーだけ立てて戻ってしまい、キーが _keys[] に入らない。
+ *   つまり Shift を押しただけで 'H' は打たれない。
+ *   write() は _modifier と _keys[0] の両方を組み立てるので問題にならなかったが、
+ *   press() に切り替えたときにこの違いを踏んだ (バージョン 4 の不具合)。
+ *
+ *   そこで needsShift() で「'h' + Shift」に分解してから、Shift は自分で press する。
+ *
+ * ⚠ 押しっぱなしの Shift は、文字ごとの Shift 要否を「反転」させる。
+ *
+ *   [Shift] を押しながら〔 "Hello" とタイプする 〕 → hELLO
+ *
+ *   大文字を打つのに内部で Shift を使う以上、外側の Shift と重なったときの
+ *   振る舞いを決めておかないと、どちらが勝つのか説明できない。
+ *   反転なら「Shift を押しながらタイプすると大文字小文字が入れ替わる」の
+ *   一文で説明できる。
+ *
+ * @param k キーコード (ASCII または KEY_* 定数)
+ */
+static void keyTap(uint8_t k) {
+  uint8_t base;
+  bool charShift = needsShift(k, &base);
+  bool useShift  = shiftHeld ? !charShift : charShift;
+
+  // この 1 文字のために Shift の状態を合わせる
+  if (useShift != shiftHeld) {
+    if (useShift) Keyboard.press(KEY_LEFT_SHIFT);
+    else          Keyboard.release(KEY_LEFT_SHIFT);
+  }
+
+  Keyboard.press(base);
+  delay(20);
+  Keyboard.release(base);
+
+  // 押しっぱなしの状態へ戻す
+  if (useShift != shiftHeld) {
+    if (shiftHeld) Keyboard.press(KEY_LEFT_SHIFT);
+    else           Keyboard.release(KEY_LEFT_SHIFT);
+  }
+  delay(20);
+}
+
+/**
  * キーボードのコマンドを実行する。
  * @param cmd コマンド ID (0x30 台)
  * @param buf 受信した Feature Report 32 バイト
  */
 static void doKeyboard(uint8_t cmd, uint8_t *buf) {
   uint8_t a = buf[1];
-  uint8_t b = buf[2];
 
   switch (cmd) {
     case CMD_KEY_TEXT:
       // [2..31] が本体。終端が無いまま 32 バイト使い切っている場合に備えて
       // 最後の 1 バイトを 0 で潰してから渡す。
+      //
+      // ⚠ この 1 行のせいで、Scratch から置けるのは [2..30] の 29 バイトになる。
+      //   30 文字送ると最後の 1 文字だけが消える。Scratch 側 index.js の
+      //   KEY_TEXT_CHUNK が 29 なのはこのため。片方だけ変えないこと。
+      //
+      // 1 文字あたり 40ms かかる (keyTap を参照)。29 文字で約 1.2 秒。
+      // Scratch 側 index.js の _typeTimeout() がこの値を見込んでいる。
+      //
+      // Keyboard.print() は使わない。あれは 1 文字ずつ write() を呼ぶので、
+      // 「[Ctrl] を押しながら〔 〕」の中で使うと修飾キーが消える (keyTap を参照)。
       buf[31] = 0;
-      Keyboard.print((const char *)&buf[2]);
+      for (uint8_t *p = &buf[2]; *p; p++) keyTap(*p);
       rsp_ok();
       break;
 
     case CMD_KEY_WRITE:
-      // write() は内部で press → 10ms → release → 50ms を行う。
-      // USB のポーリング (10ms) に確実に拾わせるための待ちなので短くしない。
-      Keyboard.write(a);
+      keyTap(a);
       rsp_ok();
       break;
 
     case CMD_KEY_PRESS:
+      // 渡ってくるのは修飾キー (0x80-0x87) だけ。press() は修飾キー単体なら
+      // 正しく動く (キーコードを持たないので早期 return が問題にならない)。
       Keyboard.press(a);
       keyHeld = true;
+      if (a == KEY_LEFT_SHIFT || a == KEY_RIGHT_SHIFT) shiftHeld = true;
       rsp_ok();
       break;
 
     case CMD_KEY_RELEASE:
       Keyboard.release(a);
+      if (a == KEY_LEFT_SHIFT || a == KEY_RIGHT_SHIFT) shiftHeld = false;
       // どのキーが残っているかは数えていないので、ここでは見張りを解かない。
       // 押しっぱなしが本当に無ければ、次の全解放か見張りで片付く。
       rsp_ok();
@@ -324,20 +445,7 @@ static void doKeyboard(uint8_t cmd, uint8_t *buf) {
     case CMD_KEY_RELEASE_ALL:
       Keyboard.releaseAll();
       keyHeld = false;
-      rsp_ok();
-      break;
-
-    case CMD_KEY_SHORTCUT:
-      // [1] = 修飾キーのビット、[2] = 一緒に押すキー
-      if (a & 0x01) Keyboard.press(KEY_LEFT_CTRL);
-      if (a & 0x02) Keyboard.press(KEY_LEFT_SHIFT);
-      if (a & 0x04) Keyboard.press(KEY_LEFT_ALT);
-      if (a & 0x08) Keyboard.press(KEY_LEFT_GUI);
-      delay(20);
-      Keyboard.press(b);
-      delay(20);
-      Keyboard.releaseAll();
-      keyHeld = false;
+      shiftHeld = false;
       rsp_ok();
       break;
 
