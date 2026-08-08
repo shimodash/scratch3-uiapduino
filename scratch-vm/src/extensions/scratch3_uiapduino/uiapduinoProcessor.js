@@ -570,7 +570,14 @@ class UiapduinoProcessor {
             raw = HANDSHAKE.NO_RESPONSE;
         }
 
-        const reflash = 'sketches/ScratchUiapduino を書き込み直してください。';
+        // ⚠ リポジトリ内のパス (sketches/ScratchUiapduino) を案内してはいけない。
+        //   Xcratch の利用者は URL を貼っただけで、リポジトリを見ていない。
+        //   スケッチはリリースに sketch.zip として同梱してあり、
+        //   「アプリとスケッチは必ず同じリリースの組み合わせで使う」のが決めごとなので、
+        //   常に最新リリースを指す。
+        const reflash =
+            '最新のスケッチ (sketch.zip) を書き込んでください: ' +
+            'https://github.com/tarosay/scratch3-uiapduino/releases/latest';
         if (raw === HANDSHAKE.NO_RESPONSE) {
             console.error(
                 '[uiapduino] デバイスが応答しません。' +
@@ -598,7 +605,7 @@ class UiapduinoProcessor {
             console.error(
                 `[uiapduino] この基板には${found}のスケッチが焼かれています。` +
                 `この拡張機能が使えるのは${want}です。` +
-                'それぞれの版に対応した拡張機能を使うか、スケッチを書き込み直してください。'
+                'それぞれの版に対応した拡張機能を使うか、' + reflash
             );
             return {ok: false, reason: REASON.VARIANT_MISMATCH, variant: variant};
         }

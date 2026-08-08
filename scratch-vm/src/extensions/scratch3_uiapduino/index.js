@@ -17,7 +17,9 @@ import BlockType from '../../extension-support/block-type';
 import Cast from '../../util/cast';
 import defaultFormatMessage from 'format-message';
 
-import UiapduinoProcessor, {CMD, MOUSE_BUTTON} from './uiapduinoProcessor';
+import UiapduinoProcessor, {
+    CMD, MOUSE_BUTTON, REASON, PROTOCOL_VERSION, SKETCH_VARIANT
+} from './uiapduinoProcessor';
 
 /**
  * 表示中の言語を知るための formatMessage。
@@ -283,6 +285,17 @@ const DISTANCE_DEFAULT = {trig: 4, echo: 3};
 const US_PER_CM = 58;
 
 /**
+ * スケッチの入手先。説明ブロックとコンソールの両方がここを案内する。
+ *
+ * リポジトリ内のパスを案内してはいけない。Xcratch の利用者は URL を貼っただけで、
+ * リポジトリを見ていない。スケッチはリリースに sketch.zip として同梱してあり、
+ * 「アプリとスケッチは必ず同じリリースの組み合わせで使う」のが決めごとなので、
+ * 常に最新リリースを指す。
+ * @type {string}
+ */
+const SKETCH_RELEASE_URL = 'https://github.com/tarosay/scratch3-uiapduino/releases/latest';
+
+/**
  * ブロックの既定ピンについて。
  *
  * CH32V003 では D13 = USB D+ / D14 = USB D- / D17 = RESET で、触ると USB が落ちる。
@@ -318,6 +331,42 @@ const message = {
         ja: '同じ URL を Chrome か Edge で開くと つながります',
         'ja-Hira': 'おなじ URL を Chrome か Edge で ひらくと つながります',
         en: 'Open the same URL in Chrome or Edge to connect'
+    },
+    // 基板のスケッチが噛み合わないときに、ブロックの代わりに出す 3 行。
+    // browserNotSupported* と同じ役割で、出し方も同じ (getInfo() を参照)。
+    sketchOutdated: {
+        ja: '⚠ 基板のスケッチが合わないので つながりません',
+        'ja-Hira': '⚠ きばんの スケッチが あわないので つながりません',
+        en: '⚠ Cannot connect: the sketch on the board does not match'
+    },
+    sketchOutdatedHow: {
+        ja: '新しいスケッチの(ScratchUiapduino.ino)を書き込んでください。',
+        'ja-Hira': 'あたらしい スケッチの(ScratchUiapduino.ino)を かきこんでください。',
+        en: 'Flash the new sketch (ScratchUiapduino.ino).'
+    },
+    // 焼くべきスケッチがどれかを見分けるための番号。
+    // 焼き直したのに直らないとき、本当に新しいものを焼いたのかがこれで分かる。
+    sketchProtocolLabel: {
+        ja: '新しいプロトコルバージョン',
+        'ja-Hira': 'あたらしい プロトコルバージョン',
+        en: 'new protocol version'
+    },
+    sketchVariantLabel: {
+        ja: 'この拡張機能が使う版',
+        'ja-Hira': 'この かくちょうきのうが つかう はん',
+        en: 'variant this extension uses'
+    },
+    // 版違い。焼き直しでは直らないことがあるので、別の言い方にする。
+    // 理由は uiapduinoProcessor.js の REASON.VARIANT_MISMATCH のコメント。
+    sketchVariant: {
+        ja: '⚠ この基板には別の版のスケッチが焼かれています',
+        'ja-Hira': '⚠ この きばんには べつの はんの スケッチが やかれています',
+        en: '⚠ This board is running a different variant of the sketch'
+    },
+    sketchVariantHow: {
+        ja: 'その版に対応した拡張機能を使うか、書き込み直してください',
+        'ja-Hira': 'その はんに たいおうした かくちょうきのうを つかうか、かきこみなおしてください',
+        en: 'Use the extension for that variant, or reflash the board'
     },
     connect: {
         ja: 'UIAPduino につなぐ',
@@ -593,6 +642,20 @@ class Scratch3Uiapduino {
          * @type {{trig: number, echo: number}}
          */
         this._distance = Object.assign({}, DISTANCE_DEFAULT);
+
+        /**
+         * 基板のスケッチが噛み合わなかったときの中身。噛み合っていれば null。
+         *
+         * `{reason, version, variant}` を持つ。getInfo() がこれを見て、
+         * ブロックの代わりに説明を出す。WebHID の無いブラウザで navigator.hid を
+         * 見ているのと同じ形で、見るものが違うだけ。
+         *
+         * ⚠ 判明するのは接続を試した後なので、getInfo() が最初に走る時点では
+         *   まだ分からない。だから覚えておいて、パレットを組み直させる
+         *   (_setSketchProblem() を参照)。
+         * @type {?object}
+         */
+        this._sketchProblem = null;
 
         /**
          * キーかマウスのボタンを押したままにした心当たりがあるか。
@@ -1186,6 +1249,36 @@ class Scratch3Uiapduino {
             info.showStatusButton = false;
         }
 
+        // 基板のスケッチが噛み合わないときも、上と同じ形で説明に差し替える。
+        //
+        // 違うのは「いつ分かるか」だけ。navigator.hid はブラウザに聞けば即答なので
+        // getInfo() のその場で判定できるが、基板のバージョンは繋いでみないと
+        // 分からない。だから _setSketchProblem() が覚えてから getInfo() を
+        // 走らせ直す。ここへ来る頃には答えが揃っている。
+        //
+        // ⚠ showStatusButton は残す。焼き直した後に繋ぎ直す手段が要るため。
+        //   消すと「つなぐ」ブロックもボタンも無くなり、やり直せなくなる。
+        //   非対応ブラウザと違って、こちらは焼けば直る。
+        if (this._sketchProblem) {
+            const variant = this._sketchProblem.reason === REASON.VARIANT_MISMATCH;
+            info.blocks = [
+                this._getText(variant ? 'sketchVariant' : 'sketchOutdated'),
+                this._getText(variant ? 'sketchVariantHow' : 'sketchOutdatedHow'),
+                // 焼くべきものを見分けるための番号。基板側の番号は出さない。
+                // 直すのに要るのは「何を焼けばよいか」であって、今何が焼かれて
+                // いるかではない。基板側の番号はコンソールに出ている。
+                variant ?
+                    `${this._getText('sketchVariantLabel')}: ${SKETCH_VARIANT}` :
+                    `${this._getText('sketchProtocolLabel')}: ${PROTOCOL_VERSION}`,
+                SKETCH_RELEASE_URL
+            ].map((text, i) => ({
+                opcode: `sketchProblem${i}`,
+                blockType: BlockType.COMMAND,
+                text: text
+            }));
+            info.menus = {};
+        }
+
         return info;
     }
 
@@ -1207,6 +1300,26 @@ class Scratch3Uiapduino {
 
     /** @returns {void} 説明ブロック (対処)。動作は持たない */
     browserNotSupportedHow () {
+        // 何もしない
+    }
+
+    /** @returns {void} スケッチが噛み合わないときの説明ブロック。動作は持たない */
+    sketchProblem0 () {
+        // 何もしない
+    }
+
+    /** @returns {void} 同上 (バージョン番号) */
+    sketchProblem1 () {
+        // 何もしない
+    }
+
+    /** @returns {void} 同上 (対処) */
+    sketchProblem2 () {
+        // 何もしない
+    }
+
+    /** @returns {void} 同上 (入手先の URL) */
+    sketchProblem3 () {
         // 何もしない
     }
 
@@ -1287,9 +1400,37 @@ class Scratch3Uiapduino {
      * @param {boolean} fromScan - 接続モーダルの検索から呼ばれたか
      * @returns {Promise<object>} processor の接続結果 {ok, reason?, error?}
      */
+    /**
+     * 基板のスケッチが噛み合ったか / 噛み合わなかったかを覚え、パレットを組み直させる。
+     *
+     * `getInfo()` は拡張機能を追加した瞬間に 1 回走るだけで、そのときはまだ
+     * 基板に繋いでいないのでバージョンが分からない。分かるのは接続を試した後なので、
+     * ここで覚えてから、もう一度 `getInfo()` を走らせる。
+     *
+     * `TOOLBOX_EXTENSIONS_NEED_UPDATE` は VM が待ち受けていて、受け取ると
+     * `extensionManager.refreshBlocks()` → 各拡張の `getInfo()` 呼び直し →
+     * `BLOCKSINFO_UPDATE` でパレット更新、と伝わる (virtual-machine.js)。
+     * 拡張機能から `extensionManager` へは届かないので、この経路を使う。
+     *
+     * 変化が無いときは何もしない。接続のたびにパレットを組み直すと、
+     * 置いてあるブロックが毎回作り直されて重い。
+     *
+     * @param {?object} problem - 噛み合わない中身。噛み合っていれば null
+     * @returns {void}
+     */
+    _setSketchProblem (problem) {
+        const before = this._sketchProblem && this._sketchProblem.reason;
+        const after = problem && problem.reason;
+        if (before === after) return;
+        this._sketchProblem = problem;
+        this.runtime.emit(this.runtime.constructor.TOOLBOX_EXTENSIONS_NEED_UPDATE);
+    }
+
     _connectAndNotify (fromScan) {
         return this.processor.connect().then(result => {
             if (result.ok) {
+                // 焼き直して繋がったら説明を消し、ブロックを戻す
+                this._setSketchProblem(null);
                 // 接続済みの状態で scan() された場合も通知する。
                 // 送らないと接続モーダルが「検索中」のまま止まる。
                 if (!this._notifiedConnected || fromScan) {
@@ -1297,6 +1438,14 @@ class Scratch3Uiapduino {
                 }
             } else {
                 console.warn(`[uiapduino] connect failed: ${result.reason}`, result.error || '');
+                // スケッチを焼き直せば直る失敗だけを扱う。
+                // 「基板が挿さっていない」「選択をキャンセルした」で
+                // ブロックを消してしまうと、繋ぐ前に触れなくなる。
+                if (result.reason === REASON.PROTOCOL_MISMATCH ||
+                    result.reason === REASON.HANDSHAKE_NO_RESPONSE ||
+                    result.reason === REASON.VARIANT_MISMATCH) {
+                    this._setSketchProblem(result);
+                }
                 if (fromScan) {
                     // Scratch GUI 3.29 は検索中の PERIPHERAL_REQUEST_ERROR を
                     // 「Scratch Link が入っていない」と解釈して WebHID には無関係な
