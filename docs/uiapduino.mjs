@@ -3021,7 +3021,11 @@ var REPORT_ID = 0;
  * 「ブロックが無言で何もしない」という一番わかりにくい壊れ方をする。
  *
  * sketches/ScratchUiapduino の PROTOCOL_VERSION と同じ値でなければならない。
- * 互換性の無い変更をしたら両方を上げること。
+ *
+ * ⚠ 上げる条件は「プロトコルを変えたとき」ではなく「今の番号が公開済みのとき」。
+ *   まだ配っていない番号には、守るべき基板が存在しない。
+ *   未公開なら番号は据え置き、中身だけ作り直して焼き直す。
+ *   詳しい理由はスケッチ側の同じ定数のコメントにある。
  *
  *   1 : ピン操作のみ
  *   2 : キーボード / マウス / 非常停止を追加。USB 設定が Keyboard+Mouse+WebHID になった
@@ -3030,9 +3034,11 @@ var REPORT_ID = 0;
  *       (「[Ctrl] を押しながら〔 〕」の囲みブロックのため)
  *   5 : 大文字と記号が打てるようになった。押しっぱなしの Shift は
  *       大文字小文字を反転させる (バージョン 4 は大文字が黙って消えていた)
+ *   6 : サーボと距離計を追加。ANALOG_WRITE と SERVO が周波数を伴うようになった
+ *       ([3..4] に Hz。それまで ANALOG_WRITE は [1]=pin [2]=duty の 3 バイトだった)
  * @type {number}
  */
-var PROTOCOL_VERSION = 5;
+var PROTOCOL_VERSION = 6;
 
 /**
  * この拡張機能が相手にするスケッチの版。
@@ -3125,10 +3131,36 @@ var CMD = {
   DIGITAL_WRITE: 0x22,
   /** デジタル入力。RSP_DATA で 0/1 が返る。 [1]=pin */
   DIGITAL_READ: 0x23,
-  /** アナログ出力 (PWM)。 [1]=pin [2]=value(0-255) */
+  /** アナログ出力 (PWM)。 [1]=pin [2]=duty(0-255) [3..4]=周波数 Hz (uint16LE) */
   ANALOG_WRITE: 0x24,
   /** アナログ入力。RSP_DATA で読み取り値が返る。 [1]=pin */
   ANALOG_READ: 0x25,
+  /**
+   * サーボ。 [1]=pin [2]=duty(0-255) [3..4]=周波数 Hz (uint16LE)
+   *
+   * ⚠ 中身は ANALOG_WRITE と全く同じ。デバイス側は同じ case で処理する。
+   *   ID を分けてあるのは hid-console.html でログを追うときに、
+   *   どちらのブロックが出したものか生バイトで区別できるようにするため。
+   *
+   * ⚠ 角度を送るのではない。デバイスは「サーボ」を知らない。
+   *   角度 → パルス幅 → duty の変換は index.js が持っている。
+   *   こうしておくと、サーボを変えても可動域を変えても基板を焼き直さずに済む。
+   *
+   * ANALOG_WRITE と同じ 5 本 (D0/D2/D5/D6/D12) にしか出せない。
+   * それ以外のピン、または周波数 0 には RSP_ERR が返る。
+   */
+  SERVO: 0x26,
+  /**
+   * 距離計 (HC-SR04)。 [1]=Trig [2]=Echo
+   *
+   * RSP_DATA で**往復時間 (µs)** が返る。距離ではない。
+   * cm への換算 (µs ÷ 58) は index.js が持っている。
+   * 係数を変えたくなったときに基板を焼き直さずに済むため。
+   *
+   * 測れなかったときは 0 が返る。反応が無い (未接続 / 電源なし) 場合と、
+   * Echo が戻らない (測定範囲外) 場合の両方が 0 になる。区別はしない。
+   */
+  DISTANCE: 0x27,
   /**
    * 非常停止。キーもマウスのボタンもすべて離す。
    *
@@ -4301,6 +4333,113 @@ var KEY_MENU_ITEMS = [keyItem('Enter', KEY_CODE_ENTER), keyItem('Tab', 0xB3), ke
 })), [keyItem('CapsLock', 0xC1), keyItem('NumLock', 0xDB), keyItem('PrintScreen', 0xCE)]);
 
 /**
+ * 「サーボ [ ] を [ ] 度にする」のピンのメニュー。
+ *
+ * PWM を出せる 5 本だけを並べる。Tools → PWM = TIM2 Default のときの
+ * TIM1 = D0 / D5 / D6 / D12、TIM2 = D2 がそれにあたる。
+ * 数値入力にしていないのは、サーボの繋がらないピンを選べてしまうため。
+ *
+ * ⚠ 表記と値が食い違って見えるが、間違いではない。
+ *   基板のシルクは PA1 = A1、PC4 = A2、PD2 = A3 で、Arduino 番号は 0 / 6 / 12。
+ *   基板に書いてある名前で選ばせ、デバイスへは Arduino 番号を送る。
+ *
+ *   この A1 / A2 / A3 は「A1 の値」のアナログ入力ブロックと同じ物理ピンを指す
+ *   (ADC のチャンネル 1 / 2 / 3 が PA1 / PC4 / PD2)。表記は揃っている。
+ *
+ * D2 はオンボード LED でもあるので、繋がなくても動きが確かめられる。既定値にしてある。
+ * @type {Array<{text: string, value: string}>}
+ */
+var SERVO_PIN_ITEMS = [{
+  text: '2',
+  value: '2'
+}, {
+  text: '5',
+  value: '5'
+}, {
+  text: 'A1',
+  value: '0'
+}, {
+  text: 'A2',
+  value: '6'
+}, {
+  text: 'A3',
+  value: '12'
+}];
+
+/**
+ * サーボの角度の上限。
+ * @type {number}
+ */
+var SERVO_ANGLE_MAX = 180;
+
+/**
+ * 「ピン [ ] の出力を [ ] にする」で使う周波数 (Hz)。
+ *
+ * デバイスは周波数を覚えないので、PWM を出すたびに渡す必要がある。
+ * サーボが同じタイマーを 50Hz にしていても、これで 1000Hz に戻る。
+ * 50Hz のままだと LED が目に見えてちらつく。
+ * @type {number}
+ */
+var PWM_FREQ_HZ = 1000;
+
+/**
+ * サーボ設定の既定値。「サーボの設定」ブロックを置かなければこれが使われる。
+ *
+ * 50Hz・500〜2270µs は SG-90 で実測した値。duty に直すと 6〜29 になる。
+ *
+ * ⚠ 上限を 2420µs (duty 31) にしてはいけない。uiapruby が生成するファームは
+ *   その値を使っているが、SG-90 に与えるとオーバーシュートして止まらなくなる
+ *   (2026-08-08 実測)。2270µs は同じ SG-90 で可動域いっぱいまで回った値。
+ * @type {{freqHz: number, minUs: number, maxUs: number}}
+ */
+var SERVO_DEFAULT = {
+  freqHz: 50,
+  minUs: 500,
+  maxUs: 2270
+};
+
+/**
+ * PWM の分解能。Pwm_write() の duty は 0-255 で、周期は 256 目盛。
+ *
+ * ⚠ この 8bit がサーボの刻みを決めている。50Hz なら 1 目盛 = 20000/256 = 78µs で、
+ *   500〜2270µs の間に 23 段階しか入らない (角度なら約 7.8° 刻み)。
+ *   µs は 1 刻みで書けるのに出力は 78µs 刻みにしか落ちないので、
+ *   2270 と 2300 は同じ duty になる。周波数を上げれば細かくなる。
+ * @type {number}
+ */
+var PWM_STEPS = 256;
+
+/**
+ * duty の上限。Pwm_write() は uint8 を取り、ATRLR = 255 で 1 周する。
+ * @type {number}
+ */
+var PWM_DUTY_MAX = 255;
+
+/**
+ * 距離計 (HC-SR04) の既定のピン。
+ *
+ * ⚠ uiap-hid-web の README の配線例 (TRIG→pin3 / ECHO→pin4) とは逆。
+ *   実機で扱いやすい向きがこちらだったため (2026-08-09)。
+ *   HC-SR04 のピン並びは VCC / Trig / Echo / GND なので、
+ *   基板の D3 / D4 に対して Echo=D3 / Trig=D4 の方が線が交差しない。
+ * @type {{trig: number, echo: number}}
+ */
+var DISTANCE_DEFAULT = {
+  trig: 4,
+  echo: 3
+};
+
+/**
+ * 往復時間 (µs) を cm にする除数。
+ *
+ * 音速 340m/s = 29µs/cm で、超音波は往復するので 58µs/cm。
+ * uiap-hid-web の UIAPrubyVmUs.ino が使っている 2784 は 48 × 58 で、
+ * あちらは SysTick の tick から直接 cm にしているぶん 48 が掛かっている。
+ * @type {number}
+ */
+var US_PER_CM = 58;
+
+/**
  * ブロックの既定ピンについて。
  *
  * CH32V003 では D13 = USB D+ / D14 = USB D- / D17 = RESET で、触ると USB が落ちる。
@@ -4391,6 +4530,28 @@ var message = {
     ja: 'A3 の値',
     'ja-Hira': 'A3 のあたい',
     en: 'A3 value'
+  },
+  servo: {
+    ja: 'サーボ [PIN] を [ANGLE] 度にする',
+    'ja-Hira': 'サーボ [PIN] を [ANGLE] どにする',
+    en: 'set servo [PIN] to [ANGLE] degrees'
+  },
+  servoConfig: {
+    ja: 'サーボの設定 周波数 [FREQ] Hz 範囲 [MIN] 〜 [MAX] µs',
+    'ja-Hira': 'サーボの せってい しゅうはすう [FREQ] Hz はんい [MIN] 〜 [MAX] µs',
+    en: 'configure servo: [FREQ] Hz, pulse [MIN] to [MAX] µs'
+  },
+  distance: {
+    ja: '距離',
+    'ja-Hira': 'きょり',
+    en: 'distance'
+  },
+  // Echo を先に置いてある。基板の D3 / D4 に対して
+  // Echo=D3 / Trig=D4 と繋ぐと線が交差しないので、その並びに合わせた。
+  distanceConfig: {
+    ja: '距離計(HC-SR04)の設定 Echo [ECHO] Trig [TRIG]',
+    'ja-Hira': 'きょりけい(HC-SR04)の せってい Echo [ECHO] Trig [TRIG]',
+    en: 'configure rangefinder (HC-SR04): Echo [ECHO] Trig [TRIG]'
   },
   keyType: {
     ja: 'キーボードで [TEXT] と打つ',
@@ -4539,6 +4700,33 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
      * @type {Array<number>}
      */
     this._lastAnalog = [0, 0, 0, 0];
+
+    /**
+     * サーボの設定。「サーボの設定」ブロックが書き換える。
+     *
+     * デバイスは何も覚えない。角度 → パルス幅 → duty の変換はすべてここで行い、
+     * デバイスへは duty と周波数だけを送る。
+     *
+     * そうしている理由は、サーボごとに可動域が違うため。デバイス側に持たせると
+     * サーボを変えるたびに基板を焼き直すことになり、Scratch の利用者にはできない。
+     * ここに置けばブロックを 1 つ置くだけで変えられる。
+     *
+     * プロジェクトには保存されない。緑の旗のたびに既定値へ戻したくはないので
+     * リセットもしない。設定ブロックを置いた作品は、実行のたびにそれが走る。
+     * @type {{freqHz: number, minUs: number, maxUs: number}}
+     */
+    this._servo = Object.assign({}, SERVO_DEFAULT);
+
+    /**
+     * 距離計 (HC-SR04) の Trig / Echo ピン。「距離計の設定」ブロックが書き換える。
+     *
+     * ここに持たせてあるので、`距離` ブロックが引数を持たずに済む。
+     * scratch-vm は「引数を 1 つも持たないレポーター」にしか
+     * パレットのチェックボックスを出さないため、これが無いと
+     * ステージに距離を表示できない。`A0 の値` を 4 つに分けてあるのと同じ理由。
+     * @type {{trig: number, echo: number}}
+     */
+    this._distance = Object.assign({}, DISTANCE_DEFAULT);
 
     /**
      * キーかマウスのボタンを押したままにした心当たりがあるか。
@@ -4784,6 +4972,86 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
           opcode: 'analogA3',
           text: this._getText('analogA3'),
           blockType: BlockType.REPORTER
+        }, '---', {
+          // 中身は PWM だが、専用のブロックにしてある。
+          // 「ピン [ ] の出力を [ ] にする」で同じことをさせるには
+          // duty 6-31 という数を利用者が知らなければならず、
+          // しかもその数は周波数を変えると意味が変わる。
+          //
+          // ⚠ 出せるのは PWM 対応の 5 本だけ。数値入力ではなくメニューにしてある。
+          //   詳細は SERVO_PIN_ITEMS のコメント。
+          opcode: 'servo',
+          text: this._getText('servo'),
+          blockType: BlockType.COMMAND,
+          arguments: {
+            PIN: {
+              type: ArgumentType.NUMBER,
+              defaultValue: 2,
+              menu: 'SERVO_PIN'
+            },
+            // ArgumentType.ANGLE は使わない。あれは「向き」を選ぶ
+            // 円盤で、上が 0、右回りに ±180 まで回る。サーボの
+            // 0-180 とは目盛の意味が違うので、素直な数値入力にする。
+            ANGLE: {
+              type: ArgumentType.NUMBER,
+              defaultValue: 90
+            }
+          }
+        }, {
+          // 置かなくても既定値 (SERVO_DEFAULT) で動く。
+          // サーボを変えて可動域が合わないときだけ置く。
+          //
+          // 周波数と µs 範囲を 1 つのブロックにまとめてあるのは、
+          // 3 つが互いに影響し合うため。周波数を上げると周期が縮むので、
+          // µs 範囲がそのままでは入り切らなくなる (servoConfig() を参照)。
+          // 別々のブロックにすると「半分だけ設定された状態」が作れてしまう。
+          opcode: 'servoConfig',
+          text: this._getText('servoConfig'),
+          blockType: BlockType.COMMAND,
+          arguments: {
+            FREQ: {
+              type: ArgumentType.NUMBER,
+              defaultValue: SERVO_DEFAULT.freqHz
+            },
+            MIN: {
+              type: ArgumentType.NUMBER,
+              defaultValue: SERVO_DEFAULT.minUs
+            },
+            MAX: {
+              type: ArgumentType.NUMBER,
+              defaultValue: SERVO_DEFAULT.maxUs
+            }
+          }
+        }, '---', {
+          // 引数を持たせていないのは、パレットにチェックボックスを出して
+          // ステージに距離を表示させるため。距離計は値を見ながら使うものなので、
+          // そこが効く。ピンは「距離計の設定」ブロックが持つ。
+          //
+          // 型番 (HC-SR04) をここに書いていないのは、毎回使う値の方を
+          // 短く保つため。型番が要るのは配線するときなので、設定ブロックに置いてある。
+          opcode: 'distance',
+          text: this._getText('distance'),
+          blockType: BlockType.REPORTER
+        }, {
+          // 置かなくても既定のピン (Echo=D3 / Trig=D4) で動く。
+          //
+          // Trig を出力にする pinMode は要らない。測るたびに
+          // デバイス側 measureEchoUs() が Trig=OUTPUT / Echo=INPUT にする。
+          // 設定した時点ではなく測る時点でやっているので、
+          // このブロックを置かない (既定ピンで使う) 場合も同じように効く。
+          opcode: 'distanceConfig',
+          text: this._getText('distanceConfig'),
+          blockType: BlockType.COMMAND,
+          arguments: {
+            ECHO: {
+              type: ArgumentType.NUMBER,
+              defaultValue: DISTANCE_DEFAULT.echo
+            },
+            TRIG: {
+              type: ArgumentType.NUMBER,
+              defaultValue: DISTANCE_DEFAULT.trig
+            }
+          }
         }, '---',
         // UIAPduino は HID なのでキーボードとマウスそのものになれる。
         // ここから下のブロックは Scratch ではなく PC 本体を操作する。
@@ -4962,6 +5230,14 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
               text: this._getText('off'),
               value: '0'
             }]
+          },
+          // 表記は基板のシルク、値は Arduino 番号 (SERVO_PIN_ITEMS を見ること)。
+          //
+          // acceptReporters を true にしてあるので、変数からメニューに無い
+          // 番号も入ってくる。デバイス側が PWM 非対応ピンを RSP_ERR で弾く。
+          SERVO_PIN: {
+            acceptReporters: true,
+            items: SERVO_PIN_ITEMS
           },
           // 値は arduino_core_ch32 の Keyboard.h の定数 (KEY_MENU_ITEMS を見ること)
           KEY: {
@@ -5270,10 +5546,25 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
         return false;
       });
     }
+
+    /**
+     * 周波数を uint16LE の 2 バイトにする。
+     *
+     * デバイスは周波数を覚えないので、PWM を出すコマンドは毎回これを伴う。
+     * @param {number} hz - 周波数
+     * @returns {Array<number>} [下位, 上位]
+     */
+  }, {
+    key: "_freqBytes",
+    value: function _freqBytes(hz) {
+      var v = Math.min(0xFFFF, Math.max(1, Math.round(hz)));
+      return [v & 0xFF, v >> 8 & 0xFF];
+    }
   }, {
     key: "analogWrite",
     value: function analogWrite(args) {
-      return this.processor.request(CMD.ANALOG_WRITE, [Cast.toNumber(args.PIN), Cast.toNumber(args.VALUE)]).catch(function () {});
+      var params = [Cast.toNumber(args.PIN), Cast.toNumber(args.VALUE)].concat(this._freqBytes(PWM_FREQ_HZ));
+      return this.processor.request(CMD.ANALOG_WRITE, params).catch(function () {});
     }
   }, {
     key: "analogRead",
@@ -5324,6 +5615,130 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
     key: "analogA3",
     value: function analogA3() {
       return this._analogRead(3);
+    }
+
+    /**
+     * サーボの可動域と周波数を設定する。
+     *
+     * デバイスへは何も送らない。ここに覚えるだけで、実際に使われるのは
+     * 次に「サーボ [ ] を [ ] 度にする」が動いたとき。
+     *
+     * ⚠ 3 つの値は互いに影響する。周波数を上げると周期が縮むので、
+     *   µs 範囲がそのままだと入り切らなくなる。
+     *
+     *     50Hz  → 周期 20000µs  2270µs は duty 29    収まる
+     *     500Hz → 周期  2000µs  2270µs は duty 290   収まらない
+     *
+     *   収まらない場合は _pulseToDuty() が 255 で頭打ちにし、警告を出す。
+     *   2270µs を保つなら周波数の実用上限は約 440Hz。
+     *
+     * @param {object} args - FREQ (Hz)、MIN / MAX (µs)
+     * @returns {void}
+     */
+  }, {
+    key: "servoConfig",
+    value: function servoConfig(args) {
+      // 下限 > 上限は禁止しない。逆に書けばサーボの向きが反転するので、
+      // 使い道のある書き方になる。
+      this._servo = {
+        freqHz: Math.min(0xFFFF, Math.max(1, Math.round(Cast.toNumber(args.FREQ)))),
+        minUs: Math.max(0, Math.round(Cast.toNumber(args.MIN))),
+        maxUs: Math.max(0, Math.round(Cast.toNumber(args.MAX)))
+      };
+    }
+
+    /**
+     * パルス幅 (µs) を duty (0-255) にする。
+     *
+     * Pwm_write() の 1 周は 256 目盛なので duty = パルス幅 ÷ 周期 × 256。
+     *
+     * @param {number} pulseUs - パルス幅 (µs)
+     * @param {number} freqHz - 周波数 (Hz)
+     * @returns {number} duty (0-255)
+     */
+  }, {
+    key: "_pulseToDuty",
+    value: function _pulseToDuty(pulseUs, freqHz) {
+      var periodUs = 1000000 / freqHz;
+      var duty = Math.round(pulseUs * PWM_STEPS / periodUs);
+      if (duty > PWM_DUTY_MAX) {
+        // 黙って頭打ちにすると「出力が振り切ったまま戻らない」という
+        // 一番わかりにくい壊れ方になる。周波数を上げたのに µs 範囲を
+        // そのままにした場合に必ずここへ来る。
+        console.warn("[uiapduino] \u30D1\u30EB\u30B9\u5E45 ".concat(pulseUs, "\xB5s \u306F ").concat(freqHz, "Hz \u306E\u5468\u671F ") + "".concat(Math.round(periodUs), "\xB5s \u306B\u53CE\u307E\u308A\u307E\u305B\u3093\u3002\u51FA\u529B\u3092\u6700\u5927\u3067\u982D\u6253\u3061\u306B\u3057\u307E\u3059\u3002") + '「サーボの設定」で周波数を下げるか、µs の範囲を狭めてください。');
+        return PWM_DUTY_MAX;
+      }
+      return Math.max(0, duty);
+    }
+
+    /**
+     * サーボを指定の角度へ向ける。
+     *
+     * 角度 0 が設定の下限 µs、180 が上限 µs。間は比例配分する。
+     * 変換をすべてここで済ませ、デバイスへは duty と周波数だけを送る。
+     * デバイスは「サーボ」を知らないので、可動域を変えても焼き直しは要らない。
+     *
+     * ⚠ 刻みは既定の 50Hz なら約 7.8°。8bit PWM で 500〜2270µs の間に
+     *   23 段階しか入らないため、90 度と 95 度は同じ位置になる。
+     *   「サーボの設定」で周波数を上げれば細かくなる (400Hz で約 1°)。
+     *
+     * 送ったあとサーボが動き終わるのを待つことはしない。どれだけかかるかは
+     * サーボ次第で、デバイス側からは分からない。待たせたいときは
+     * Scratch の「[ ] 秒待つ」を続けて置く。
+     *
+     * @param {object} args - PIN (Arduino 番号) と ANGLE (度)
+     * @returns {Promise<void>} 応答が返ったら resolve。失敗しても reject しない
+     */
+  }, {
+    key: "servo",
+    value: function servo(args) {
+      var cfg = this._servo;
+      var angle = Math.min(SERVO_ANGLE_MAX, Math.max(0, Cast.toNumber(args.ANGLE)));
+      var pulseUs = cfg.minUs + (cfg.maxUs - cfg.minUs) * angle / SERVO_ANGLE_MAX;
+      var params = [Cast.toNumber(args.PIN), this._pulseToDuty(pulseUs, cfg.freqHz)].concat(this._freqBytes(cfg.freqHz));
+      return this.processor.request(CMD.SERVO, params).catch(function () {});
+    }
+
+    /**
+     * 距離計の Trig / Echo ピンを設定する。
+     *
+     * デバイスへは何も送らない。次に「距離」が読まれたときに使われる。
+     * @param {object} args - TRIG / ECHO (Arduino のピン番号)
+     * @returns {void}
+     */
+  }, {
+    key: "distanceConfig",
+    value: function distanceConfig(args) {
+      this._distance = {
+        trig: Cast.toNumber(args.TRIG),
+        echo: Cast.toNumber(args.ECHO)
+      };
+    }
+
+    /**
+     * 距離計 (HC-SR04) で測った距離を cm で返す。
+     *
+     * デバイスが返すのは往復時間 (µs) で、cm への換算はここでやる。
+     * 音速 340m/s = 29µs/cm、超音波は往復するので 58µs/cm。
+     * 係数をここに置いてあるので、変えたくなっても基板を焼き直さずに済む。
+     *
+     * ⚠ 測れなかったときは 0 を返す。アナログ入力のように直前の値を保つことはしない。
+     *   未接続でも範囲外でも 0 になり、区別はしない。
+     *
+     * 小数第 1 位までにしてある。HC-SR04 の分解能は 0.3cm 程度なので、
+     * それ以上の桁を出しても意味のある数字にならない。
+     *
+     * @returns {Promise<number>} 距離 (cm)。測れなければ 0
+     */
+  }, {
+    key: "distance",
+    value: function distance() {
+      var cfg = this._distance;
+      return this.processor.request(CMD.DISTANCE, [cfg.trig, cfg.echo]).then(function (us) {
+        return us === 0 ? 0 : Math.round(us / US_PER_CM * 10) / 10;
+      }).catch(function () {
+        return 0;
+      });
     }
 
     // --- キーボード -----------------------------------------------------

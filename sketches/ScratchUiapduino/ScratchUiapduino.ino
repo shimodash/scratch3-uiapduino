@@ -82,9 +82,18 @@ PWMMIN_REQUIRE_DEFAULT();
 // 照合が無いと、噛み合わないコマンドを送って「ブロックが無言で何もしない」
 // という一番わかりにくい壊れ方をする。
 //
-// 互換性の無い変更（コマンド ID の変更、応答形式の変更、パラメータの意味の変更）
-// をしたら必ず上げること。Scratch 側 uiapduinoProcessor.js の PROTOCOL_VERSION と
-// 同じ値でなければならない。
+// Scratch 側 uiapduinoProcessor.js の PROTOCOL_VERSION と同じ値でなければならない。
+//
+// ⚠ 上げる条件は「プロトコルを変えたとき」ではなく「今の番号が公開済みのとき」。
+//
+//   守る相手は "誰かの手元にある基板" なので、まだ配っていない番号には
+//   守るべき基板が存在しない。開発中に番号を上げても、噛み合わない相手は居ない。
+//
+//   今の番号がタグ付き / docs 公開済み / 基板を配った、のどれかなら → 上げる
+//   どれでもないなら → 番号は据え置き、中身だけ作り直して焼き直す
+//
+//   実際、公開されたのは 1 の次が 5 だった。2 と 4 はコミットにも残っていない。
+//   検証のたびに機械的に上げたためで、公開番号を無駄に消費していた (2026-08-08)。
 //
 //   1 : ピン操作のみ
 //   2 : キーボード / マウス / 非常停止を追加。USB 設定が Keyboard+Mouse+WebHID になった
@@ -93,7 +102,9 @@ PWMMIN_REQUIRE_DEFAULT();
 //       (「[Ctrl] を押しながら〔 〕」の囲みブロックのため。keyTap() を参照)
 //   5 : 大文字と記号が打てるようになった。押しっぱなしの Shift は
 //       大文字小文字を反転させる (バージョン 4 は大文字が黙って消えていた)
-#define PROTOCOL_VERSION 5
+//   6 : サーボと距離計を追加。ANALOG_WRITE と SERVO が周波数を伴うようになった
+//       ([3..4] に Hz。それまで ANALOG_WRITE は [1]=pin [2]=duty の 3 バイトだった)
+#define PROTOCOL_VERSION 6
 
 // このスケッチがどの版かを表す番号。PING の応答の上位バイトで返す。
 //
@@ -123,6 +134,8 @@ PWMMIN_REQUIRE_DEFAULT();
 #define CMD_DIGITAL_READ  0x23
 #define CMD_ANALOG_WRITE  0x24
 #define CMD_ANALOG_READ   0x25
+#define CMD_SERVO         0x26
+#define CMD_DISTANCE      0x27
 #define CMD_PANIC         0x2F
 
 // キーボード (0x30 台)。
@@ -262,6 +275,105 @@ static bool analogChannelOk(uint8_t ch) {
  */
 static bool pwmPinOk(uint8_t pin) {
   return pin == 0 || pin == 2 || pin == 5 || pin == 6 || pin == 12;
+}
+
+// ── PWM の周波数 ────────────────────────────────────────────────────────────
+//
+// ⚠ このスケッチは「サーボ」を知らない。
+//
+//   角度・パルス幅・可動域はすべて Scratch 側が持っている。ここへ届くのは
+//   「このピンに、この周波数で、この duty を出せ」だけ。だからサーボを
+//   変えても、可動域を変えても、このスケッチを焼き直す必要がない。
+//   ブロックの設定を変えるだけで済む。
+//
+//   デバイスに角度を解釈させると、可動域を変えるたびに焼き直しになる。
+//   Scratch の利用者にそれはできない。
+//
+// PWMmin の周波数は「ピンごと」ではなく「タイマーごと」にしか設定できない。
+// Tools → PWM = TIM2 Default では TIM2 は D2 だけ、残りの D0/D5/D6/D12 が TIM1。
+//
+// しかも Pwm_write() は呼ばれるたびに TIMn->PSC を書き戻す。つまり最後に
+// 周波数を言った者が勝つ。だから PWM を出すコマンドは毎回それを持ってくる。
+//
+// ⚠ 残る制約は消せない。同じタイマーのピンでサーボとアナログ出力を同時に使うと、
+//   後から出した方の周波数に揃う。TIM1 は D0/D5/D6/D12 を共有しているため。
+//   ハードウェアの制約なので、ここで直せるものではない。
+
+/**
+ * ピンの属するタイマーだけ周波数を変える。
+ *
+ * Pwm_freq() は TIM1 と TIM2 の両方を変えてしまうので使わない。
+ * サーボを D5 (TIM1) に出しただけで、LED の D2 (TIM2) まで 50Hz になる。
+ *
+ * Tools → PWM = TIM2 Default 前提。TIM2 は D2 だけで、残りは TIM1。
+ * Remap3 では TIM2 が D3/D9/D15/D16 に変わるが、このスケッチは
+ * 先頭の PWMMIN_REQUIRE_DEFAULT() で Default 以外をコンパイルエラーにしてある。
+ */
+static void pwmSetFreq(uint8_t pin, uint32_t hz) {
+  if (pin == 2) Pwm_freq_TIM2(hz);
+  else          Pwm_freq_TIM1(hz);
+}
+
+// ── 距離計 (HC-SR04) ────────────────────────────────────────────────────────
+//
+// Trig にパルスを出し、Echo が High になっている時間を測って返す。
+// 返すのは往復時間 (µs) だけで、cm への換算は Scratch 側でやる。
+// 係数を変えたくなったときに基板を焼き直さずに済む。
+//
+// ⚠ micros() を使わない。CH32V003 の micros() は millis() と同じ uint64_t の
+//   除算を引き込むので、これ 1 つで Flash が 2.2KB 増える (README の Flash 使用量を参照)。
+//   pulseIn() も内部で micros() を呼ぶので同じ。
+//
+//   代わりに SysTick->CNT を直接読む。SystemInit() 済みの free-running カウンタで、
+//   micros() が内部で使っているものと同じ。uiap-hid-web の UIAPrubyVmUs.ino が
+//   実機で使っている方法でもある。
+//
+//   32bit の引き算なので折り返しも安全。48MHz なら約 89 秒で 1 周する。
+//   計測は長くても数十 ms なので届かない。
+
+/** SysTick の 1µs あたりのカウント数。core の wiring_time.h の DELAY_US_TICKS と同じ */
+#define SYSTICK_PER_US (F_CPU / 1000000UL)
+
+// 待ちの上限。時間ではなくループの回数で数える (UIAPrubyVmUs.ino と同じ)。
+// 時間で測ろうとすると、その時計のために micros() が要る。
+#define ECHO_WAIT_RISE  60000UL   /* Echo が High になるまで */
+#define ECHO_WAIT_FALL 400000UL   /* Echo が Low に戻るまで */
+
+/**
+ * HC-SR04 で往復時間を測る。
+ *
+ * Trig の High は 1ms。データシートの 10µs より長いが、
+ * uiap-hid-web の UIAPrubyVmUs.ino が実機で使っている値に合わせてある。
+ *
+ * @param trig Trig ピン
+ * @param echo Echo ピン
+ * @return 往復時間 (µs)。測れなければ 0
+ */
+static uint16_t measureEchoUs(uint8_t trig, uint8_t echo) {
+  // PWM 中のピンを指定された場合に備える。PWM 中でなければ何も起きない。
+  Pwm_stop(trig);
+  Pwm_stop(echo);
+  pinMode(trig, OUTPUT);
+  pinMode(echo, INPUT);
+
+  digitalWrite(trig, HIGH);
+  delay(1);
+  digitalWrite(trig, LOW);
+
+  // 反応が返ってこない (未接続 / 電源なし)
+  uint32_t cnt = ECHO_WAIT_RISE;
+  while (!digitalRead(echo) && --cnt) {}
+  if (cnt == 0) return 0;
+
+  uint32_t t0 = SysTick->CNT;
+  cnt = ECHO_WAIT_FALL;
+  while (digitalRead(echo) && --cnt) {}
+  // High のまま戻らない (測定範囲外)
+  if (cnt == 0) return 0;
+
+  uint32_t us = (uint32_t)(SysTick->CNT - t0) / SYSTICK_PER_US;
+  // 16bit に収まらない値は Scratch へ渡せない。測れなかったものとして扱う。
+  return us > 0xFFFF ? 0 : (uint16_t)us;
 }
 
 /** マウスのボタンをすべて離す */
@@ -653,18 +765,48 @@ void loop() {
       rsp_value(digitalRead(pin) ? 1 : 0, 1);
       break;
 
+    // アナログ出力とサーボは同じ処理。どちらも「このピンに、この周波数で、
+    // この duty を出せ」でしかない。違うのは Scratch 側が渡してくる値だけで、
+    // アナログ出力は 1000Hz、サーボは既定なら 50Hz を持ってくる。
+    //
+    // ID を 2 つに分けてあるのは hid-console.html でログを追うため。
+    // どちらのブロックが出したものか、生バイトを見て区別できる。
+    //
+    // analogWrite() は使わない。CH32V003 では HardwareTimer を丸ごと
+    // 引き込んで Flash を 2KB 以上食う上に、
+    //   - TIM1 と TIM2 の両方に使うと operator new のプールが枯れて無言でフリーズする
+    //   - analogWrite → pinMode → analogWrite の往復で RAM が減り続ける
+    // という問題がある。Scratch のブロックはどちらも普通にやってしまう。
+    // 詳細は arduino_core_ch32 の README「CH32V003 では analogWrite() を使わないでください」。
     case CMD_ANALOG_WRITE:
-      // analogWrite() は使わない。CH32V003 では HardwareTimer を丸ごと
-      // 引き込んで Flash を 2KB 以上食う上に、
-      //   - TIM1 と TIM2 の両方に使うと operator new のプールが枯れて無言でフリーズする
-      //   - analogWrite → pinMode → analogWrite の往復で RAM が減り続ける
-      // という問題がある。Scratch のブロックはどちらも普通にやってしまう。
-      // 詳細は arduino_core_ch32 の README「CH32V003 では analogWrite() を使わないでください」。
-      if (pwmPinOk(pin)) {
-        Pwm_write(pin, val);
-        rsp_ok();
+    case CMD_SERVO: {
+      // [1]=pin [2]=duty(0-255) [3..4]=周波数 Hz (uint16LE)
+      uint16_t hz = (uint16_t)buf[3] | ((uint16_t)buf[4] << 8);
+
+      // 周波数 0 を弾く。Pwm_freq_TIM*() は 0 を渡されると何もせずに戻るので、
+      // 直前の周波数のまま出てしまう。黙って別の周波数で出すより失敗させる。
+      //
+      // ピンの方は、Scratch 側メニューが PWM を出せる 5 本しか並べていないが、
+      // メニューは acceptReporters なので変数からどんな番号でも入ってくる。
+      // 黙ってデジタル出力にフォールバックせず、はっきり失敗させる。
+      if (!pwmPinOk(pin) || hz == 0) {
+        rsp_err();
+        break;
+      }
+      pwmSetFreq(pin, hz);
+      Pwm_write(pin, val);
+      rsp_ok();
+      break;
+    }
+
+    case CMD_DISTANCE:
+      // [1]=Trig [2]=Echo。往復時間 (µs) を返す。測れなければ 0。
+      //
+      // Trig は上の digitalPinOk(pin) で確認済み。Echo はここで見る。
+      // cm への換算は Scratch 側 (µs ÷ 58)。
+      if (digitalPinOk(val)) {
+        rsp_value(measureEchoUs(pin, val), 2);
       } else {
-        // 黙ってデジタル出力にフォールバックせず、はっきり失敗させる
         rsp_err();
       }
       break;

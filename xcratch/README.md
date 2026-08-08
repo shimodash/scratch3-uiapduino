@@ -99,25 +99,47 @@ Windows ではリンクにジャンクションを使うので、開発者モー
 （本当の理由 `WebHID is not available in this environment` は console にしか出ない）。
 2026-08-07 に実際に踏んだ。
 
+手元で配るには live-server を CORS 付きで立てる。
+
+```powershell
+npx --yes live-server "D:\git\github\scratch3-uiapduino\xcratch\dist" --host=127.0.0.1 --port=5500 --cors --no-browser
+```
+
+**配信するのは `dist` だけにすること。絶対パスで渡すこと。** 理由は 2 つあり、
+どちらも実際に踏んでいる（2026-08-08）。
+
+**1. `.` を渡すとカレントディレクトリを配ってしまう。** `xcratch/` へ移動し忘れて
+ホームディレクトリで実行すると、`C:\Users\<名前>` 以下が丸ごと配信・監視対象になる。
+`Change detected AppData\...` が延々と流れ続けるのですぐ分かる。
+**しかもこのとき `--cors` が効いている。** `Access-Control-Allow-Origin: *` を返すので、
+閲覧中の任意のサイトのスクリプトから `http://127.0.0.1:5500/AppData/...` が読める。
+ローカル宛てだから安全、ではない。
+
+**2. `xcratch/` を配ると `node_modules` まで監視する。** 正しいディレクトリで
+実行していても数万ファイルを抱えることになる。`dist` なら 2 ファイルで済む。
+
 1. [Xcratch エディタ](https://xcratch.github.io/editor/) を開く
 2. 「拡張機能を追加」→「Extension Loader」
-3. `dist/uiapduino.mjs` の URL を入れる
+3. `http://127.0.0.1:5500/uiapduino.mjs` を入れる
 
 `?extension=` に URL を渡せば 2〜3 を省ける。確認のたびに使うのはこちらが早い。
 
 ```
-https://xcratch.github.io/editor/?extension=http://localhost:5500/dist/uiapduino.mjs
+https://xcratch.github.io/editor/?extension=http://127.0.0.1:5500/uiapduino.mjs
 ```
 
-手元で配るには live-server を CORS 付きで立てる。**HTTPS は要らない。** Chrome / Edge は
-`http://localhost` を安全なオリジンとして扱うので、証明書も mkcert も不要だった。
+`dist` をルートにして配るので、URL に `/dist` は付かない。
 
-```powershell
-npx --yes live-server . --host=127.0.0.1 --port=5500 --cors --no-browser
-```
+**HTTPS は要らない。** Xcratch は HTTPS のページなので、そこから `http://` を読むのは
+本来なら混在コンテンツで弾かれる。ただし `http://localhost` と `http://127.0.0.1` は
+Chrome / Edge が「安全なオリジン」として扱うため、この 2 つだけは例外的に読める。
+証明書も mkcert も要らない。
 
-手元の `dist/uiapduino.mjs` を試すには HTTPS で配る必要がある（Xcratch は HTTPS の
-ページから読むため）。`file://` では読み込めない。
+**`file://` では読み込めない。** live-server なしで済ませることはできない。
+
+⚠ 上の例外が効くのは `localhost` と `127.0.0.1` だけ。同じ手元の PC でも、
+LAN の IP（`192.168.x.x` など）で配ると混在コンテンツで弾かれる。
+別の端末から確認したいときは、そこだけ HTTPS が要る。
 
 ## デスクトップ版との違い
 
