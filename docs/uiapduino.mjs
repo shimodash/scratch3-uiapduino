@@ -24,7 +24,7 @@ var translations = {
 }
 };
 
-var version$1 = "0.2.0";
+var version$1 = "0.2.1";
 
 /**
  * Xcratch の拡張機能一覧に出す情報。
