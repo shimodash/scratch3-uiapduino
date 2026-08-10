@@ -68,9 +68,12 @@ const REPORT_ID = 0;
  *       大文字小文字を反転させる (バージョン 4 は大文字が黙って消えていた)
  *   6 : サーボと距離計を追加。ANALOG_WRITE と SERVO が周波数を伴うようになった
  *       ([3..4] に Hz。それまで ANALOG_WRITE は [1]=pin [2]=duty の 3 バイトだった)
+ *   7 : シリアル通信を追加。SERIAL_BEGIN / WRITE / READ と受信通知 (0x54)。
+ *       begin 後は D15 / D16 (= A5 / A6) が TX / RX になるので弾くようになった
+ *       (6 は v0.2.1 として公開済みなので据え置けない)
  * @type {number}
  */
-const PROTOCOL_VERSION = 6;
+const PROTOCOL_VERSION = 7;
 
 /**
  * この拡張機能が相手にするスケッチの版。
@@ -193,6 +196,33 @@ const CMD = {
      * Echo が戻らない (測定範囲外) 場合の両方が 0 になる。区別はしない。
      */
     DISTANCE: 0x27,
+
+    /**
+     * シリアル通信を始める。 [1..4]=ボーレート (uint32LE)
+     *
+     * これを送った時点でデバイスは D15 / D16 を TX / RX として使い始める。
+     * 以後 D15 / D16 / A5 / A6 は RSP_ERR で弾かれる。閉じるコマンドは無い。
+     */
+    SERIAL_BEGIN: 0x28,
+    /**
+     * 送信。 [1]=バイト数 (最大 30) [2..31]=中身
+     *
+     * 0 終端ではないので、途中に 0 があっても切れない。
+     * 文字列の組み立て (CSV・改行) は index.js が持っている。
+     * デバイスは「行」も「数値」も知らない。
+     */
+    SERIAL_WRITE: 0x29,
+    /**
+     * 受信。 [1]=最大バイト数 (最大 29)
+     *
+     * RSP_DATA で **先頭に実際のバイト数** が付いたバイト列が返る。
+     * 数値ではないので request() の raw を立てて呼ぶこと。
+     *
+     * 1 レポート 5 バイト + 12ms なので、30 バイトで約 85ms かかる。
+     * 読み出しの上限が毎秒 330 バイト程度なのはこのため。
+     */
+    SERIAL_READ: 0x2A,
+
     /**
      * 非常停止。キーもマウスのボタンもすべて離す。
      *
@@ -268,7 +298,17 @@ const MARKER = {
     /** コマンド応答 */
     RSP: 0x52,
     /** デバイスログ ('D') */
-    LOG: 0x44
+    LOG: 0x44,
+    /**
+     * シリアルの受信通知。デバイスが応答とは無関係に勝手に送ってくる。
+     *
+     * 中身は無い。「読むものがある」としか言っていない。
+     * 何行あるか、どこで区切るかは index.js 側が決める。
+     *
+     * デバイスは 1 回知らせたら、読みに来るまで黙る。読んでも残っていれば
+     * また知らせるので、これを合図に空になるまで読み続けられる。
+     */
+    SERIAL: 0x54
 };
 
 /**
@@ -378,6 +418,14 @@ class UiapduinoProcessor {
          * 意図的な disconnect() では呼ばない。物理切断のときだけ呼ぶ。
          */
         this.onDisconnected = null;
+
+        /**
+         * シリアルの受信通知を受け取るコールバック。
+         *
+         * デバイス側の「割り込み」がここまで届く。処理は index.js が持つ。
+         * ここでは読みにも行かない。何を読むか決めるのは上位の仕事。
+         */
+        this.onSerialData = null;
 
         this._onInputReport = this._onInputReport.bind(this);
     }
@@ -721,13 +769,14 @@ class UiapduinoProcessor {
      * @param {number} command - CMD.* のいずれか
      * @param {Array<number>} params - パラメータのバイト列
      * @param {number} [timeout] - 応答を諦めるまでの時間 (ms)
-     * @returns {Promise<number>} 戻り値。戻り値のないコマンドは 0
+     * @param {boolean} [raw] - true ならバイト列のまま返す。false なら数値にする
+     * @returns {Promise<number|Array<number>>} 戻り値。戻り値のないコマンドは 0
      */
-    request (command, params = [], timeout = COMMAND_TIMEOUT) {
+    request (command, params = [], timeout = COMMAND_TIMEOUT, raw = false) {
         if (!this.isConnected()) {
             return Promise.reject(new Error('uiapduino is not connected'));
         }
-        return this._enqueue(command, params, timeout);
+        return this._enqueue(command, params, timeout, raw);
     }
 
     /**
@@ -754,9 +803,10 @@ class UiapduinoProcessor {
      * @param {number} command - CMD.* のいずれか
      * @param {Array<number>} params - パラメータのバイト列
      * @param {number} timeout - 応答を諦めるまでの時間 (ms)
-     * @returns {Promise<number>} 戻り値
+     * @param {boolean} [raw] - true ならバイト列のまま返す
+     * @returns {Promise<number|Array<number>>} 戻り値
      */
-    _enqueue (command, params, timeout) {
+    _enqueue (command, params, timeout, raw = false) {
         const payload = new Uint8Array(this.featureReportSize);
         payload[0] = command;
         params.forEach((value, i) => {
@@ -764,7 +814,7 @@ class UiapduinoProcessor {
         });
 
         return new Promise((resolve, reject) => {
-            this.queue.push({command, payload, timeout, resolve, reject, data: []});
+            this.queue.push({command, payload, timeout, raw, resolve, reject, data: []});
             this._dequeue();
         });
     }
@@ -883,6 +933,10 @@ class UiapduinoProcessor {
         case MARKER.LOG:
             this._handleLog(d);
             break;
+        case MARKER.SERIAL:
+            // 応答待ちの有無とは無関係に届く。pending には触らない。
+            if (this.onSerialData) this.onSerialData();
+            break;
         default:
             // 未知のパケット。将来 0x51 (GetPos) などを扱うならここに足す。
             break;
@@ -925,6 +979,10 @@ class UiapduinoProcessor {
             // センサー値が黙って 0 になるので、エラーとして表に出す。
             if (this.pending.data.length === 0) {
                 this._finishPending(new Error('uiapduino response lost its payload (RSP_DATA missing)'));
+            } else if (this.pending.raw) {
+                // シリアルの読み出しはバイト列そのものが欲しい。
+                // 数値にすると 5 バイトを超えたところで精度が壊れる。
+                this._finishPending(null, this.pending.data.slice());
             } else {
                 this._finishPending(null, this._toValue(this.pending.data));
             }

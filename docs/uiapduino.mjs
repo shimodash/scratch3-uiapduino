@@ -112,6 +112,32 @@ var entry = {
   translationMap: translations
 };
 
+function asyncGeneratorStep(n, t, e, r, o, a, c) {
+  try {
+    var i = n[a](c),
+      u = i.value;
+  } catch (n) {
+    return void e(n);
+  }
+  i.done ? t(u) : Promise.resolve(u).then(r, o);
+}
+function _asyncToGenerator(n) {
+  return function () {
+    var t = this,
+      e = arguments;
+    return new Promise(function (r, o) {
+      var a = n.apply(t, e);
+      function _next(n) {
+        asyncGeneratorStep(a, r, o, _next, _throw, "next", n);
+      }
+      function _throw(n) {
+        asyncGeneratorStep(a, r, o, _next, _throw, "throw", n);
+      }
+      _next(void 0);
+    });
+  };
+}
+
 function _classCallCheck$1(a, n) {
   if (!(a instanceof n)) throw new TypeError("Cannot call a class as a function");
 }
@@ -187,6 +213,430 @@ function _toConsumableArray(r) {
 function getDefaultExportFromCjs (x) {
 	return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, 'default') ? x['default'] : x;
 }
+
+var regeneratorRuntime$1 = {exports: {}};
+
+var OverloadYield = {exports: {}};
+
+var hasRequiredOverloadYield;
+
+function requireOverloadYield () {
+	if (hasRequiredOverloadYield) return OverloadYield.exports;
+	hasRequiredOverloadYield = 1;
+	(function (module) {
+		function _OverloadYield(e, d) {
+		  this.v = e, this.k = d;
+		}
+		module.exports = _OverloadYield, module.exports.__esModule = true, module.exports["default"] = module.exports; 
+	} (OverloadYield));
+	return OverloadYield.exports;
+}
+
+var regenerator$1 = {exports: {}};
+
+var regeneratorDefine = {exports: {}};
+
+var hasRequiredRegeneratorDefine;
+
+function requireRegeneratorDefine () {
+	if (hasRequiredRegeneratorDefine) return regeneratorDefine.exports;
+	hasRequiredRegeneratorDefine = 1;
+	(function (module) {
+		function _regeneratorDefine(e, r, n, t) {
+		  var i = Object.defineProperty;
+		  try {
+		    i({}, "", {});
+		  } catch (e) {
+		    i = 0;
+		  }
+		  module.exports = _regeneratorDefine = function regeneratorDefine(e, r, n, t) {
+		    function o(r, n) {
+		      _regeneratorDefine(e, r, function (e) {
+		        return this._invoke(r, n, e);
+		      });
+		    }
+		    r ? i ? i(e, r, {
+		      value: n,
+		      enumerable: !t,
+		      configurable: !t,
+		      writable: !t
+		    }) : e[r] = n : (o("next", 0), o("throw", 1), o("return", 2));
+		  }, module.exports.__esModule = true, module.exports["default"] = module.exports, _regeneratorDefine(e, r, n, t);
+		}
+		module.exports = _regeneratorDefine, module.exports.__esModule = true, module.exports["default"] = module.exports; 
+	} (regeneratorDefine));
+	return regeneratorDefine.exports;
+}
+
+var hasRequiredRegenerator$1;
+
+function requireRegenerator$1 () {
+	if (hasRequiredRegenerator$1) return regenerator$1.exports;
+	hasRequiredRegenerator$1 = 1;
+	(function (module) {
+		var regeneratorDefine = requireRegeneratorDefine();
+		function _regenerator() {
+		  /*! regenerator-runtime -- Copyright (c) 2014-present, Facebook, Inc. -- license (MIT): https://github.com/babel/babel/blob/main/packages/babel-helpers/LICENSE */
+		  var e,
+		    t,
+		    r = "function" == typeof Symbol ? Symbol : {},
+		    n = r.iterator || "@@iterator",
+		    o = r.toStringTag || "@@toStringTag";
+		  function i(r, n, o, i) {
+		    var c = n && n.prototype instanceof Generator ? n : Generator,
+		      u = Object.create(c.prototype);
+		    return regeneratorDefine(u, "_invoke", function (r, n, o) {
+		      var i,
+		        c,
+		        u,
+		        f = 0,
+		        p = o || [],
+		        y = false,
+		        G = {
+		          p: 0,
+		          n: 0,
+		          v: e,
+		          a: d,
+		          f: d.bind(e, 4),
+		          d: function d(t, r) {
+		            return i = t, c = 0, u = e, G.n = r, a;
+		          }
+		        };
+		      function d(r, n) {
+		        for (c = r, u = n, t = 0; !y && f && !o && t < p.length; t++) {
+		          var o,
+		            i = p[t],
+		            d = G.p,
+		            l = i[2];
+		          r > 3 ? (o = l === n) && (u = i[(c = i[4]) ? 5 : (c = 3, 3)], i[4] = i[5] = e) : i[0] <= d && ((o = r < 2 && d < i[1]) ? (c = 0, G.v = n, G.n = i[1]) : d < l && (o = r < 3 || i[0] > n || n > l) && (i[4] = r, i[5] = n, G.n = l, c = 0));
+		        }
+		        if (o || r > 1) return a;
+		        throw y = true, n;
+		      }
+		      return function (o, p, l) {
+		        if (f > 1) throw TypeError("Generator is already running");
+		        for (y && 1 === p && d(p, l), c = p, u = l; (t = c < 2 ? e : u) || !y;) {
+		          i || (c ? c < 3 ? (c > 1 && (G.n = -1), d(c, u)) : G.n = u : G.v = u);
+		          try {
+		            if (f = 2, i) {
+		              if (c || (o = "next"), t = i[o]) {
+		                if (!(t = t.call(i, u))) throw TypeError("iterator result is not an object");
+		                if (!t.done) return t;
+		                u = t.value, c < 2 && (c = 0);
+		              } else 1 === c && (t = i["return"]) && t.call(i), c < 2 && (u = TypeError("The iterator does not provide a '" + o + "' method"), c = 1);
+		              i = e;
+		            } else if ((t = (y = G.n < 0) ? u : r.call(n, G)) !== a) break;
+		          } catch (t) {
+		            i = e, c = 1, u = t;
+		          } finally {
+		            f = 1;
+		          }
+		        }
+		        return {
+		          value: t,
+		          done: y
+		        };
+		      };
+		    }(r, o, i), true), u;
+		  }
+		  var a = {};
+		  function Generator() {}
+		  function GeneratorFunction() {}
+		  function GeneratorFunctionPrototype() {}
+		  t = Object.getPrototypeOf;
+		  var c = [][n] ? t(t([][n]())) : (regeneratorDefine(t = {}, n, function () {
+		      return this;
+		    }), t),
+		    u = GeneratorFunctionPrototype.prototype = Generator.prototype = Object.create(c);
+		  function f(e) {
+		    return Object.setPrototypeOf ? Object.setPrototypeOf(e, GeneratorFunctionPrototype) : (e.__proto__ = GeneratorFunctionPrototype, regeneratorDefine(e, o, "GeneratorFunction")), e.prototype = Object.create(u), e;
+		  }
+		  return GeneratorFunction.prototype = GeneratorFunctionPrototype, regeneratorDefine(u, "constructor", GeneratorFunctionPrototype), regeneratorDefine(GeneratorFunctionPrototype, "constructor", GeneratorFunction), GeneratorFunction.displayName = "GeneratorFunction", regeneratorDefine(GeneratorFunctionPrototype, o, "GeneratorFunction"), regeneratorDefine(u), regeneratorDefine(u, o, "Generator"), regeneratorDefine(u, n, function () {
+		    return this;
+		  }), regeneratorDefine(u, "toString", function () {
+		    return "[object Generator]";
+		  }), (module.exports = _regenerator = function _regenerator() {
+		    return {
+		      w: i,
+		      m: f
+		    };
+		  }, module.exports.__esModule = true, module.exports["default"] = module.exports)();
+		}
+		module.exports = _regenerator, module.exports.__esModule = true, module.exports["default"] = module.exports; 
+	} (regenerator$1));
+	return regenerator$1.exports;
+}
+
+var regeneratorAsync = {exports: {}};
+
+var regeneratorAsyncGen = {exports: {}};
+
+var regeneratorAsyncIterator = {exports: {}};
+
+var hasRequiredRegeneratorAsyncIterator;
+
+function requireRegeneratorAsyncIterator () {
+	if (hasRequiredRegeneratorAsyncIterator) return regeneratorAsyncIterator.exports;
+	hasRequiredRegeneratorAsyncIterator = 1;
+	(function (module) {
+		var OverloadYield = requireOverloadYield();
+		var regeneratorDefine = requireRegeneratorDefine();
+		function AsyncIterator(t, e) {
+		  function n(r, o, i, f) {
+		    try {
+		      var c = t[r](o),
+		        u = c.value;
+		      return u instanceof OverloadYield ? e.resolve(u.v).then(function (t) {
+		        n("next", t, i, f);
+		      }, function (t) {
+		        n("throw", t, i, f);
+		      }) : e.resolve(u).then(function (t) {
+		        c.value = t, i(c);
+		      }, function (t) {
+		        return n("throw", t, i, f);
+		      });
+		    } catch (t) {
+		      f(t);
+		    }
+		  }
+		  var r;
+		  this.next || (regeneratorDefine(AsyncIterator.prototype), regeneratorDefine(AsyncIterator.prototype, "function" == typeof Symbol && Symbol.asyncIterator || "@asyncIterator", function () {
+		    return this;
+		  })), regeneratorDefine(this, "_invoke", function (t, o, i) {
+		    function f() {
+		      return new e(function (e, r) {
+		        n(t, i, e, r);
+		      });
+		    }
+		    return r = r ? r.then(f, f) : f();
+		  }, true);
+		}
+		module.exports = AsyncIterator, module.exports.__esModule = true, module.exports["default"] = module.exports; 
+	} (regeneratorAsyncIterator));
+	return regeneratorAsyncIterator.exports;
+}
+
+var hasRequiredRegeneratorAsyncGen;
+
+function requireRegeneratorAsyncGen () {
+	if (hasRequiredRegeneratorAsyncGen) return regeneratorAsyncGen.exports;
+	hasRequiredRegeneratorAsyncGen = 1;
+	(function (module) {
+		var regenerator = requireRegenerator$1();
+		var regeneratorAsyncIterator = requireRegeneratorAsyncIterator();
+		function _regeneratorAsyncGen(r, e, t, o, n) {
+		  return new regeneratorAsyncIterator(regenerator().w(r, e, t, o), n || Promise);
+		}
+		module.exports = _regeneratorAsyncGen, module.exports.__esModule = true, module.exports["default"] = module.exports; 
+	} (regeneratorAsyncGen));
+	return regeneratorAsyncGen.exports;
+}
+
+var hasRequiredRegeneratorAsync;
+
+function requireRegeneratorAsync () {
+	if (hasRequiredRegeneratorAsync) return regeneratorAsync.exports;
+	hasRequiredRegeneratorAsync = 1;
+	(function (module) {
+		var regeneratorAsyncGen = requireRegeneratorAsyncGen();
+		function _regeneratorAsync(n, e, r, t, o) {
+		  var a = regeneratorAsyncGen(n, e, r, t, o);
+		  return a.next().then(function (n) {
+		    return n.done ? n.value : a.next();
+		  });
+		}
+		module.exports = _regeneratorAsync, module.exports.__esModule = true, module.exports["default"] = module.exports; 
+	} (regeneratorAsync));
+	return regeneratorAsync.exports;
+}
+
+var regeneratorKeys = {exports: {}};
+
+var hasRequiredRegeneratorKeys;
+
+function requireRegeneratorKeys () {
+	if (hasRequiredRegeneratorKeys) return regeneratorKeys.exports;
+	hasRequiredRegeneratorKeys = 1;
+	(function (module) {
+		function _regeneratorKeys(e) {
+		  var n = Object(e),
+		    r = [];
+		  for (var t in n) r.unshift(t);
+		  return function e() {
+		    for (; r.length;) if ((t = r.pop()) in n) return e.value = t, e.done = false, e;
+		    return e.done = true, e;
+		  };
+		}
+		module.exports = _regeneratorKeys, module.exports.__esModule = true, module.exports["default"] = module.exports; 
+	} (regeneratorKeys));
+	return regeneratorKeys.exports;
+}
+
+var regeneratorValues = {exports: {}};
+
+var _typeof = {exports: {}};
+
+var hasRequired_typeof;
+
+function require_typeof () {
+	if (hasRequired_typeof) return _typeof.exports;
+	hasRequired_typeof = 1;
+	(function (module) {
+		function _typeof(o) {
+		  "@babel/helpers - typeof";
+
+		  return module.exports = _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function (o) {
+		    return typeof o;
+		  } : function (o) {
+		    return o && "function" == typeof Symbol && o.constructor === Symbol && o !== Symbol.prototype ? "symbol" : typeof o;
+		  }, module.exports.__esModule = true, module.exports["default"] = module.exports, _typeof(o);
+		}
+		module.exports = _typeof, module.exports.__esModule = true, module.exports["default"] = module.exports; 
+	} (_typeof));
+	return _typeof.exports;
+}
+
+var hasRequiredRegeneratorValues;
+
+function requireRegeneratorValues () {
+	if (hasRequiredRegeneratorValues) return regeneratorValues.exports;
+	hasRequiredRegeneratorValues = 1;
+	(function (module) {
+		var _typeof = require_typeof()["default"];
+		function _regeneratorValues(e) {
+		  if (null != e) {
+		    var t = e["function" == typeof Symbol && Symbol.iterator || "@@iterator"],
+		      r = 0;
+		    if (t) return t.call(e);
+		    if ("function" == typeof e.next) return e;
+		    if (!isNaN(e.length)) return {
+		      next: function next() {
+		        return e && r >= e.length && (e = void 0), {
+		          value: e && e[r++],
+		          done: !e
+		        };
+		      }
+		    };
+		  }
+		  throw new TypeError(_typeof(e) + " is not iterable");
+		}
+		module.exports = _regeneratorValues, module.exports.__esModule = true, module.exports["default"] = module.exports; 
+	} (regeneratorValues));
+	return regeneratorValues.exports;
+}
+
+var hasRequiredRegeneratorRuntime;
+
+function requireRegeneratorRuntime () {
+	if (hasRequiredRegeneratorRuntime) return regeneratorRuntime$1.exports;
+	hasRequiredRegeneratorRuntime = 1;
+	(function (module) {
+		var OverloadYield = requireOverloadYield();
+		var regenerator = requireRegenerator$1();
+		var regeneratorAsync = requireRegeneratorAsync();
+		var regeneratorAsyncGen = requireRegeneratorAsyncGen();
+		var regeneratorAsyncIterator = requireRegeneratorAsyncIterator();
+		var regeneratorKeys = requireRegeneratorKeys();
+		var regeneratorValues = requireRegeneratorValues();
+		function _regeneratorRuntime() {
+
+		  var r = regenerator(),
+		    e = r.m(_regeneratorRuntime),
+		    t = (Object.getPrototypeOf ? Object.getPrototypeOf(e) : e.__proto__).constructor;
+		  function n(r) {
+		    var e = "function" == typeof r && r.constructor;
+		    return !!e && (e === t || "GeneratorFunction" === (e.displayName || e.name));
+		  }
+		  var o = {
+		    "throw": 1,
+		    "return": 2,
+		    "break": 3,
+		    "continue": 3
+		  };
+		  function a(r) {
+		    var e, t;
+		    return function (n) {
+		      e || (e = {
+		        stop: function stop() {
+		          return t(n.a, 2);
+		        },
+		        "catch": function _catch() {
+		          return n.v;
+		        },
+		        abrupt: function abrupt(r, e) {
+		          return t(n.a, o[r], e);
+		        },
+		        delegateYield: function delegateYield(r, o, a) {
+		          return e.resultName = o, t(n.d, regeneratorValues(r), a);
+		        },
+		        finish: function finish(r) {
+		          return t(n.f, r);
+		        }
+		      }, t = function t(r, _t, o) {
+		        n.p = e.prev, n.n = e.next;
+		        try {
+		          return r(_t, o);
+		        } finally {
+		          e.next = n.n;
+		        }
+		      }), e.resultName && (e[e.resultName] = n.v, e.resultName = void 0), e.sent = n.v, e.next = n.n;
+		      try {
+		        return r.call(this, e);
+		      } finally {
+		        n.p = e.prev, n.n = e.next;
+		      }
+		    };
+		  }
+		  return (module.exports = _regeneratorRuntime = function _regeneratorRuntime() {
+		    return {
+		      wrap: function wrap(e, t, n, o) {
+		        return r.w(a(e), t, n, o && o.reverse());
+		      },
+		      isGeneratorFunction: n,
+		      mark: r.m,
+		      awrap: function awrap(r, e) {
+		        return new OverloadYield(r, e);
+		      },
+		      AsyncIterator: regeneratorAsyncIterator,
+		      async: function async(r, e, t, o, u) {
+		        return (n(e) ? regeneratorAsyncGen : regeneratorAsync)(a(r), e, t, o, u);
+		      },
+		      keys: regeneratorKeys,
+		      values: regeneratorValues
+		    };
+		  }, module.exports.__esModule = true, module.exports["default"] = module.exports)();
+		}
+		module.exports = _regeneratorRuntime, module.exports.__esModule = true, module.exports["default"] = module.exports; 
+	} (regeneratorRuntime$1));
+	return regeneratorRuntime$1.exports;
+}
+
+var regenerator;
+var hasRequiredRegenerator;
+
+function requireRegenerator () {
+	if (hasRequiredRegenerator) return regenerator;
+	hasRequiredRegenerator = 1;
+	// TODO(Babel 8): Remove this file.
+
+	var runtime = requireRegeneratorRuntime()();
+	regenerator = runtime;
+
+	// Copied from https://github.com/facebook/regenerator/blob/main/packages/runtime/runtime.js#L736=
+	try {
+	  regeneratorRuntime = runtime;
+	} catch (accidentalStrictMode) {
+	  if (typeof globalThis === "object") {
+	    globalThis.regeneratorRuntime = runtime;
+	  } else {
+	    Function("r", "regeneratorRuntime = r")(runtime);
+	  }
+	}
+	return regenerator;
+}
+
+var regeneratorExports = requireRegenerator();
+var _regeneratorRuntime = /*@__PURE__*/getDefaultExportFromCjs(regeneratorExports);
 
 /**
  * Block argument types
@@ -2513,456 +2963,6 @@ function requireFormatMessage () {
 var formatMessageExports = requireFormatMessage();
 var defaultFormatMessage = /*@__PURE__*/getDefaultExportFromCjs(formatMessageExports);
 
-function asyncGeneratorStep(n, t, e, r, o, a, c) {
-  try {
-    var i = n[a](c),
-      u = i.value;
-  } catch (n) {
-    return void e(n);
-  }
-  i.done ? t(u) : Promise.resolve(u).then(r, o);
-}
-function _asyncToGenerator(n) {
-  return function () {
-    var t = this,
-      e = arguments;
-    return new Promise(function (r, o) {
-      var a = n.apply(t, e);
-      function _next(n) {
-        asyncGeneratorStep(a, r, o, _next, _throw, "next", n);
-      }
-      function _throw(n) {
-        asyncGeneratorStep(a, r, o, _next, _throw, "throw", n);
-      }
-      _next(void 0);
-    });
-  };
-}
-
-var regeneratorRuntime$1 = {exports: {}};
-
-var OverloadYield = {exports: {}};
-
-var hasRequiredOverloadYield;
-
-function requireOverloadYield () {
-	if (hasRequiredOverloadYield) return OverloadYield.exports;
-	hasRequiredOverloadYield = 1;
-	(function (module) {
-		function _OverloadYield(e, d) {
-		  this.v = e, this.k = d;
-		}
-		module.exports = _OverloadYield, module.exports.__esModule = true, module.exports["default"] = module.exports; 
-	} (OverloadYield));
-	return OverloadYield.exports;
-}
-
-var regenerator$1 = {exports: {}};
-
-var regeneratorDefine = {exports: {}};
-
-var hasRequiredRegeneratorDefine;
-
-function requireRegeneratorDefine () {
-	if (hasRequiredRegeneratorDefine) return regeneratorDefine.exports;
-	hasRequiredRegeneratorDefine = 1;
-	(function (module) {
-		function _regeneratorDefine(e, r, n, t) {
-		  var i = Object.defineProperty;
-		  try {
-		    i({}, "", {});
-		  } catch (e) {
-		    i = 0;
-		  }
-		  module.exports = _regeneratorDefine = function regeneratorDefine(e, r, n, t) {
-		    function o(r, n) {
-		      _regeneratorDefine(e, r, function (e) {
-		        return this._invoke(r, n, e);
-		      });
-		    }
-		    r ? i ? i(e, r, {
-		      value: n,
-		      enumerable: !t,
-		      configurable: !t,
-		      writable: !t
-		    }) : e[r] = n : (o("next", 0), o("throw", 1), o("return", 2));
-		  }, module.exports.__esModule = true, module.exports["default"] = module.exports, _regeneratorDefine(e, r, n, t);
-		}
-		module.exports = _regeneratorDefine, module.exports.__esModule = true, module.exports["default"] = module.exports; 
-	} (regeneratorDefine));
-	return regeneratorDefine.exports;
-}
-
-var hasRequiredRegenerator$1;
-
-function requireRegenerator$1 () {
-	if (hasRequiredRegenerator$1) return regenerator$1.exports;
-	hasRequiredRegenerator$1 = 1;
-	(function (module) {
-		var regeneratorDefine = requireRegeneratorDefine();
-		function _regenerator() {
-		  /*! regenerator-runtime -- Copyright (c) 2014-present, Facebook, Inc. -- license (MIT): https://github.com/babel/babel/blob/main/packages/babel-helpers/LICENSE */
-		  var e,
-		    t,
-		    r = "function" == typeof Symbol ? Symbol : {},
-		    n = r.iterator || "@@iterator",
-		    o = r.toStringTag || "@@toStringTag";
-		  function i(r, n, o, i) {
-		    var c = n && n.prototype instanceof Generator ? n : Generator,
-		      u = Object.create(c.prototype);
-		    return regeneratorDefine(u, "_invoke", function (r, n, o) {
-		      var i,
-		        c,
-		        u,
-		        f = 0,
-		        p = o || [],
-		        y = false,
-		        G = {
-		          p: 0,
-		          n: 0,
-		          v: e,
-		          a: d,
-		          f: d.bind(e, 4),
-		          d: function d(t, r) {
-		            return i = t, c = 0, u = e, G.n = r, a;
-		          }
-		        };
-		      function d(r, n) {
-		        for (c = r, u = n, t = 0; !y && f && !o && t < p.length; t++) {
-		          var o,
-		            i = p[t],
-		            d = G.p,
-		            l = i[2];
-		          r > 3 ? (o = l === n) && (u = i[(c = i[4]) ? 5 : (c = 3, 3)], i[4] = i[5] = e) : i[0] <= d && ((o = r < 2 && d < i[1]) ? (c = 0, G.v = n, G.n = i[1]) : d < l && (o = r < 3 || i[0] > n || n > l) && (i[4] = r, i[5] = n, G.n = l, c = 0));
-		        }
-		        if (o || r > 1) return a;
-		        throw y = true, n;
-		      }
-		      return function (o, p, l) {
-		        if (f > 1) throw TypeError("Generator is already running");
-		        for (y && 1 === p && d(p, l), c = p, u = l; (t = c < 2 ? e : u) || !y;) {
-		          i || (c ? c < 3 ? (c > 1 && (G.n = -1), d(c, u)) : G.n = u : G.v = u);
-		          try {
-		            if (f = 2, i) {
-		              if (c || (o = "next"), t = i[o]) {
-		                if (!(t = t.call(i, u))) throw TypeError("iterator result is not an object");
-		                if (!t.done) return t;
-		                u = t.value, c < 2 && (c = 0);
-		              } else 1 === c && (t = i["return"]) && t.call(i), c < 2 && (u = TypeError("The iterator does not provide a '" + o + "' method"), c = 1);
-		              i = e;
-		            } else if ((t = (y = G.n < 0) ? u : r.call(n, G)) !== a) break;
-		          } catch (t) {
-		            i = e, c = 1, u = t;
-		          } finally {
-		            f = 1;
-		          }
-		        }
-		        return {
-		          value: t,
-		          done: y
-		        };
-		      };
-		    }(r, o, i), true), u;
-		  }
-		  var a = {};
-		  function Generator() {}
-		  function GeneratorFunction() {}
-		  function GeneratorFunctionPrototype() {}
-		  t = Object.getPrototypeOf;
-		  var c = [][n] ? t(t([][n]())) : (regeneratorDefine(t = {}, n, function () {
-		      return this;
-		    }), t),
-		    u = GeneratorFunctionPrototype.prototype = Generator.prototype = Object.create(c);
-		  function f(e) {
-		    return Object.setPrototypeOf ? Object.setPrototypeOf(e, GeneratorFunctionPrototype) : (e.__proto__ = GeneratorFunctionPrototype, regeneratorDefine(e, o, "GeneratorFunction")), e.prototype = Object.create(u), e;
-		  }
-		  return GeneratorFunction.prototype = GeneratorFunctionPrototype, regeneratorDefine(u, "constructor", GeneratorFunctionPrototype), regeneratorDefine(GeneratorFunctionPrototype, "constructor", GeneratorFunction), GeneratorFunction.displayName = "GeneratorFunction", regeneratorDefine(GeneratorFunctionPrototype, o, "GeneratorFunction"), regeneratorDefine(u), regeneratorDefine(u, o, "Generator"), regeneratorDefine(u, n, function () {
-		    return this;
-		  }), regeneratorDefine(u, "toString", function () {
-		    return "[object Generator]";
-		  }), (module.exports = _regenerator = function _regenerator() {
-		    return {
-		      w: i,
-		      m: f
-		    };
-		  }, module.exports.__esModule = true, module.exports["default"] = module.exports)();
-		}
-		module.exports = _regenerator, module.exports.__esModule = true, module.exports["default"] = module.exports; 
-	} (regenerator$1));
-	return regenerator$1.exports;
-}
-
-var regeneratorAsync = {exports: {}};
-
-var regeneratorAsyncGen = {exports: {}};
-
-var regeneratorAsyncIterator = {exports: {}};
-
-var hasRequiredRegeneratorAsyncIterator;
-
-function requireRegeneratorAsyncIterator () {
-	if (hasRequiredRegeneratorAsyncIterator) return regeneratorAsyncIterator.exports;
-	hasRequiredRegeneratorAsyncIterator = 1;
-	(function (module) {
-		var OverloadYield = requireOverloadYield();
-		var regeneratorDefine = requireRegeneratorDefine();
-		function AsyncIterator(t, e) {
-		  function n(r, o, i, f) {
-		    try {
-		      var c = t[r](o),
-		        u = c.value;
-		      return u instanceof OverloadYield ? e.resolve(u.v).then(function (t) {
-		        n("next", t, i, f);
-		      }, function (t) {
-		        n("throw", t, i, f);
-		      }) : e.resolve(u).then(function (t) {
-		        c.value = t, i(c);
-		      }, function (t) {
-		        return n("throw", t, i, f);
-		      });
-		    } catch (t) {
-		      f(t);
-		    }
-		  }
-		  var r;
-		  this.next || (regeneratorDefine(AsyncIterator.prototype), regeneratorDefine(AsyncIterator.prototype, "function" == typeof Symbol && Symbol.asyncIterator || "@asyncIterator", function () {
-		    return this;
-		  })), regeneratorDefine(this, "_invoke", function (t, o, i) {
-		    function f() {
-		      return new e(function (e, r) {
-		        n(t, i, e, r);
-		      });
-		    }
-		    return r = r ? r.then(f, f) : f();
-		  }, true);
-		}
-		module.exports = AsyncIterator, module.exports.__esModule = true, module.exports["default"] = module.exports; 
-	} (regeneratorAsyncIterator));
-	return regeneratorAsyncIterator.exports;
-}
-
-var hasRequiredRegeneratorAsyncGen;
-
-function requireRegeneratorAsyncGen () {
-	if (hasRequiredRegeneratorAsyncGen) return regeneratorAsyncGen.exports;
-	hasRequiredRegeneratorAsyncGen = 1;
-	(function (module) {
-		var regenerator = requireRegenerator$1();
-		var regeneratorAsyncIterator = requireRegeneratorAsyncIterator();
-		function _regeneratorAsyncGen(r, e, t, o, n) {
-		  return new regeneratorAsyncIterator(regenerator().w(r, e, t, o), n || Promise);
-		}
-		module.exports = _regeneratorAsyncGen, module.exports.__esModule = true, module.exports["default"] = module.exports; 
-	} (regeneratorAsyncGen));
-	return regeneratorAsyncGen.exports;
-}
-
-var hasRequiredRegeneratorAsync;
-
-function requireRegeneratorAsync () {
-	if (hasRequiredRegeneratorAsync) return regeneratorAsync.exports;
-	hasRequiredRegeneratorAsync = 1;
-	(function (module) {
-		var regeneratorAsyncGen = requireRegeneratorAsyncGen();
-		function _regeneratorAsync(n, e, r, t, o) {
-		  var a = regeneratorAsyncGen(n, e, r, t, o);
-		  return a.next().then(function (n) {
-		    return n.done ? n.value : a.next();
-		  });
-		}
-		module.exports = _regeneratorAsync, module.exports.__esModule = true, module.exports["default"] = module.exports; 
-	} (regeneratorAsync));
-	return regeneratorAsync.exports;
-}
-
-var regeneratorKeys = {exports: {}};
-
-var hasRequiredRegeneratorKeys;
-
-function requireRegeneratorKeys () {
-	if (hasRequiredRegeneratorKeys) return regeneratorKeys.exports;
-	hasRequiredRegeneratorKeys = 1;
-	(function (module) {
-		function _regeneratorKeys(e) {
-		  var n = Object(e),
-		    r = [];
-		  for (var t in n) r.unshift(t);
-		  return function e() {
-		    for (; r.length;) if ((t = r.pop()) in n) return e.value = t, e.done = false, e;
-		    return e.done = true, e;
-		  };
-		}
-		module.exports = _regeneratorKeys, module.exports.__esModule = true, module.exports["default"] = module.exports; 
-	} (regeneratorKeys));
-	return regeneratorKeys.exports;
-}
-
-var regeneratorValues = {exports: {}};
-
-var _typeof = {exports: {}};
-
-var hasRequired_typeof;
-
-function require_typeof () {
-	if (hasRequired_typeof) return _typeof.exports;
-	hasRequired_typeof = 1;
-	(function (module) {
-		function _typeof(o) {
-		  "@babel/helpers - typeof";
-
-		  return module.exports = _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function (o) {
-		    return typeof o;
-		  } : function (o) {
-		    return o && "function" == typeof Symbol && o.constructor === Symbol && o !== Symbol.prototype ? "symbol" : typeof o;
-		  }, module.exports.__esModule = true, module.exports["default"] = module.exports, _typeof(o);
-		}
-		module.exports = _typeof, module.exports.__esModule = true, module.exports["default"] = module.exports; 
-	} (_typeof));
-	return _typeof.exports;
-}
-
-var hasRequiredRegeneratorValues;
-
-function requireRegeneratorValues () {
-	if (hasRequiredRegeneratorValues) return regeneratorValues.exports;
-	hasRequiredRegeneratorValues = 1;
-	(function (module) {
-		var _typeof = require_typeof()["default"];
-		function _regeneratorValues(e) {
-		  if (null != e) {
-		    var t = e["function" == typeof Symbol && Symbol.iterator || "@@iterator"],
-		      r = 0;
-		    if (t) return t.call(e);
-		    if ("function" == typeof e.next) return e;
-		    if (!isNaN(e.length)) return {
-		      next: function next() {
-		        return e && r >= e.length && (e = void 0), {
-		          value: e && e[r++],
-		          done: !e
-		        };
-		      }
-		    };
-		  }
-		  throw new TypeError(_typeof(e) + " is not iterable");
-		}
-		module.exports = _regeneratorValues, module.exports.__esModule = true, module.exports["default"] = module.exports; 
-	} (regeneratorValues));
-	return regeneratorValues.exports;
-}
-
-var hasRequiredRegeneratorRuntime;
-
-function requireRegeneratorRuntime () {
-	if (hasRequiredRegeneratorRuntime) return regeneratorRuntime$1.exports;
-	hasRequiredRegeneratorRuntime = 1;
-	(function (module) {
-		var OverloadYield = requireOverloadYield();
-		var regenerator = requireRegenerator$1();
-		var regeneratorAsync = requireRegeneratorAsync();
-		var regeneratorAsyncGen = requireRegeneratorAsyncGen();
-		var regeneratorAsyncIterator = requireRegeneratorAsyncIterator();
-		var regeneratorKeys = requireRegeneratorKeys();
-		var regeneratorValues = requireRegeneratorValues();
-		function _regeneratorRuntime() {
-
-		  var r = regenerator(),
-		    e = r.m(_regeneratorRuntime),
-		    t = (Object.getPrototypeOf ? Object.getPrototypeOf(e) : e.__proto__).constructor;
-		  function n(r) {
-		    var e = "function" == typeof r && r.constructor;
-		    return !!e && (e === t || "GeneratorFunction" === (e.displayName || e.name));
-		  }
-		  var o = {
-		    "throw": 1,
-		    "return": 2,
-		    "break": 3,
-		    "continue": 3
-		  };
-		  function a(r) {
-		    var e, t;
-		    return function (n) {
-		      e || (e = {
-		        stop: function stop() {
-		          return t(n.a, 2);
-		        },
-		        "catch": function _catch() {
-		          return n.v;
-		        },
-		        abrupt: function abrupt(r, e) {
-		          return t(n.a, o[r], e);
-		        },
-		        delegateYield: function delegateYield(r, o, a) {
-		          return e.resultName = o, t(n.d, regeneratorValues(r), a);
-		        },
-		        finish: function finish(r) {
-		          return t(n.f, r);
-		        }
-		      }, t = function t(r, _t, o) {
-		        n.p = e.prev, n.n = e.next;
-		        try {
-		          return r(_t, o);
-		        } finally {
-		          e.next = n.n;
-		        }
-		      }), e.resultName && (e[e.resultName] = n.v, e.resultName = void 0), e.sent = n.v, e.next = n.n;
-		      try {
-		        return r.call(this, e);
-		      } finally {
-		        n.p = e.prev, n.n = e.next;
-		      }
-		    };
-		  }
-		  return (module.exports = _regeneratorRuntime = function _regeneratorRuntime() {
-		    return {
-		      wrap: function wrap(e, t, n, o) {
-		        return r.w(a(e), t, n, o && o.reverse());
-		      },
-		      isGeneratorFunction: n,
-		      mark: r.m,
-		      awrap: function awrap(r, e) {
-		        return new OverloadYield(r, e);
-		      },
-		      AsyncIterator: regeneratorAsyncIterator,
-		      async: function async(r, e, t, o, u) {
-		        return (n(e) ? regeneratorAsyncGen : regeneratorAsync)(a(r), e, t, o, u);
-		      },
-		      keys: regeneratorKeys,
-		      values: regeneratorValues
-		    };
-		  }, module.exports.__esModule = true, module.exports["default"] = module.exports)();
-		}
-		module.exports = _regeneratorRuntime, module.exports.__esModule = true, module.exports["default"] = module.exports; 
-	} (regeneratorRuntime$1));
-	return regeneratorRuntime$1.exports;
-}
-
-var regenerator;
-var hasRequiredRegenerator;
-
-function requireRegenerator () {
-	if (hasRequiredRegenerator) return regenerator;
-	hasRequiredRegenerator = 1;
-	// TODO(Babel 8): Remove this file.
-
-	var runtime = requireRegeneratorRuntime()();
-	regenerator = runtime;
-
-	// Copied from https://github.com/facebook/regenerator/blob/main/packages/runtime/runtime.js#L736=
-	try {
-	  regeneratorRuntime = runtime;
-	} catch (accidentalStrictMode) {
-	  if (typeof globalThis === "object") {
-	    globalThis.regeneratorRuntime = runtime;
-	  } else {
-	    Function("r", "regeneratorRuntime = r")(runtime);
-	  }
-	}
-	return regenerator;
-}
-
-var regeneratorExports = requireRegenerator();
-var _regeneratorRuntime = /*@__PURE__*/getDefaultExportFromCjs(regeneratorExports);
-
 function _createForOfIteratorHelper$1(r, e) { var t = "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"]; if (!t) { if (Array.isArray(r) || (t = _unsupportedIterableToArray$1(r)) || e) { t && (r = t); var _n = 0, F = function F() {}; return { s: F, n: function n() { return _n >= r.length ? { done: true } : { done: false, value: r[_n++] }; }, e: function e(r) { throw r; }, f: F }; } throw new TypeError("Invalid attempt to iterate non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); } var o, a = true, u = false; return { s: function s() { t = t.call(r); }, n: function n() { var r = t.next(); return a = r.done, r; }, e: function e(r) { u = true, o = r; }, f: function f() { try { a || null == t.return || t.return(); } finally { if (u) throw o; } } }; }
 function _unsupportedIterableToArray$1(r, a) { if (r) { if ("string" == typeof r) return _arrayLikeToArray$1(r, a); var t = {}.toString.call(r).slice(8, -1); return "Object" === t && r.constructor && (t = r.constructor.name), "Map" === t || "Set" === t ? Array.from(r) : "Arguments" === t || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(t) ? _arrayLikeToArray$1(r, a) : void 0; } }
 function _arrayLikeToArray$1(r, a) { (null == a || a > r.length) && (a = r.length); for (var e = 0, n = Array(a); e < a; e++) n[e] = r[e]; return n; }
@@ -3036,9 +3036,12 @@ var REPORT_ID = 0;
  *       大文字小文字を反転させる (バージョン 4 は大文字が黙って消えていた)
  *   6 : サーボと距離計を追加。ANALOG_WRITE と SERVO が周波数を伴うようになった
  *       ([3..4] に Hz。それまで ANALOG_WRITE は [1]=pin [2]=duty の 3 バイトだった)
+ *   7 : シリアル通信を追加。SERIAL_BEGIN / WRITE / READ と受信通知 (0x54)。
+ *       begin 後は D15 / D16 (= A5 / A6) が TX / RX になるので弾くようになった
+ *       (6 は v0.2.1 として公開済みなので据え置けない)
  * @type {number}
  */
-var PROTOCOL_VERSION = 6;
+var PROTOCOL_VERSION = 7;
 
 /**
  * この拡張機能が相手にするスケッチの版。
@@ -3162,6 +3165,31 @@ var CMD = {
    */
   DISTANCE: 0x27,
   /**
+   * シリアル通信を始める。 [1..4]=ボーレート (uint32LE)
+   *
+   * これを送った時点でデバイスは D15 / D16 を TX / RX として使い始める。
+   * 以後 D15 / D16 / A5 / A6 は RSP_ERR で弾かれる。閉じるコマンドは無い。
+   */
+  SERIAL_BEGIN: 0x28,
+  /**
+   * 送信。 [1]=バイト数 (最大 30) [2..31]=中身
+   *
+   * 0 終端ではないので、途中に 0 があっても切れない。
+   * 文字列の組み立て (CSV・改行) は index.js が持っている。
+   * デバイスは「行」も「数値」も知らない。
+   */
+  SERIAL_WRITE: 0x29,
+  /**
+   * 受信。 [1]=最大バイト数 (最大 29)
+   *
+   * RSP_DATA で **先頭に実際のバイト数** が付いたバイト列が返る。
+   * 数値ではないので request() の raw を立てて呼ぶこと。
+   *
+   * 1 レポート 5 バイト + 12ms なので、30 バイトで約 85ms かかる。
+   * 読み出しの上限が毎秒 330 バイト程度なのはこのため。
+   */
+  SERIAL_READ: 0x2A,
+  /**
    * 非常停止。キーもマウスのボタンもすべて離す。
    *
    * 停止ボタンから送る。押しっぱなしのまま止まると PC が操作不能になり、
@@ -3231,7 +3259,17 @@ var MARKER = {
   /** コマンド応答 */
   RSP: 0x52,
   /** デバイスログ ('D') */
-  LOG: 0x44
+  LOG: 0x44,
+  /**
+   * シリアルの受信通知。デバイスが応答とは無関係に勝手に送ってくる。
+   *
+   * 中身は無い。「読むものがある」としか言っていない。
+   * 何行あるか、どこで区切るかは index.js 側が決める。
+   *
+   * デバイスは 1 回知らせたら、読みに来るまで黙る。読んでも残っていれば
+   * また知らせるので、これを合図に空になるまで読み続けられる。
+   */
+  SERIAL: 0x54
 };
 
 /**
@@ -3343,6 +3381,14 @@ var UiapduinoProcessor = /*#__PURE__*/function () {
      * 意図的な disconnect() では呼ばない。物理切断のときだけ呼ぶ。
      */
     this.onDisconnected = null;
+
+    /**
+     * シリアルの受信通知を受け取るコールバック。
+     *
+     * デバイス側の「割り込み」がここまで届く。処理は index.js が持つ。
+     * ここでは読みにも行かない。何を読むか決めるのは上位の仕事。
+     */
+    this.onSerialData = null;
     this._onInputReport = this._onInputReport.bind(this);
   }
 
@@ -3879,17 +3925,19 @@ var UiapduinoProcessor = /*#__PURE__*/function () {
      * @param {number} command - CMD.* のいずれか
      * @param {Array<number>} params - パラメータのバイト列
      * @param {number} [timeout] - 応答を諦めるまでの時間 (ms)
-     * @returns {Promise<number>} 戻り値。戻り値のないコマンドは 0
+     * @param {boolean} [raw] - true ならバイト列のまま返す。false なら数値にする
+     * @returns {Promise<number|Array<number>>} 戻り値。戻り値のないコマンドは 0
      */
   }, {
     key: "request",
     value: function request(command) {
       var params = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : [];
       var timeout = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : COMMAND_TIMEOUT;
+      var raw = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : false;
       if (!this.isConnected()) {
         return Promise.reject(new Error('uiapduino is not connected'));
       }
-      return this._enqueue(command, params, timeout);
+      return this._enqueue(command, params, timeout, raw);
     }
 
     /**
@@ -3920,12 +3968,14 @@ var UiapduinoProcessor = /*#__PURE__*/function () {
      * @param {number} command - CMD.* のいずれか
      * @param {Array<number>} params - パラメータのバイト列
      * @param {number} timeout - 応答を諦めるまでの時間 (ms)
-     * @returns {Promise<number>} 戻り値
+     * @param {boolean} [raw] - true ならバイト列のまま返す
+     * @returns {Promise<number|Array<number>>} 戻り値
      */
   }, {
     key: "_enqueue",
     value: function _enqueue(command, params, timeout) {
       var _this3 = this;
+      var raw = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : false;
       var payload = new Uint8Array(this.featureReportSize);
       payload[0] = command;
       params.forEach(function (value, i) {
@@ -3936,6 +3986,7 @@ var UiapduinoProcessor = /*#__PURE__*/function () {
           command: command,
           payload: payload,
           timeout: timeout,
+          raw: raw,
           resolve: resolve,
           reject: reject,
           data: []
@@ -4073,6 +4124,10 @@ var UiapduinoProcessor = /*#__PURE__*/function () {
         case MARKER.LOG:
           this._handleLog(d);
           break;
+        case MARKER.SERIAL:
+          // 応答待ちの有無とは無関係に届く。pending には触らない。
+          if (this.onSerialData) this.onSerialData();
+          break;
       }
     }
 
@@ -4112,6 +4167,10 @@ var UiapduinoProcessor = /*#__PURE__*/function () {
           // センサー値が黙って 0 になるので、エラーとして表に出す。
           if (this.pending.data.length === 0) {
             this._finishPending(new Error('uiapduino response lost its payload (RSP_DATA missing)'));
+          } else if (this.pending.raw) {
+            // シリアルの読み出しはバイト列そのものが欲しい。
+            // 数値にすると 5 バイトを超えたところで精度が壊れる。
+            this._finishPending(null, this.pending.data.slice());
           } else {
             this._finishPending(null, this._toValue(this.pending.data));
           }
@@ -4445,6 +4504,108 @@ var DISTANCE_DEFAULT = {
 var US_PER_CM = 58;
 
 /**
+ * シリアル送信 1 コマンドあたりのバイト数。
+ *
+ * Feature Report 32 バイトのうち [0]=コマンド [1]=長さ を除いた [2..31]。
+ * デバイス側 ScratchUiapduino.ino の SERIAL_CHUNK と同じ値でなければならない。
+ * @type {number}
+ */
+var SERIAL_WRITE_CHUNK = 30;
+
+/**
+ * シリアル受信 1 コマンドあたりのバイト数。
+ *
+ * 応答は先頭に実際のバイト数が付くので、送信より 1 少ない。
+ * これを増やしても速くはならない (1 レポート 5 バイト + 12ms が効く)。
+ * @type {number}
+ */
+var SERIAL_READ_CHUNK = 29;
+
+/**
+ * 1 回の通知で読み出しを繰り返す上限。
+ *
+ * 通知が来たら空になるまで読むが、相手が延々と送り続けている場合に
+ * ここで止まらないと Scratch が固まる。29 × 40 = 1160 バイトまで。
+ * @type {number}
+ */
+var SERIAL_PUMP_MAX = 40;
+
+/**
+ * 読み出し 1 回の応答待ち (ms)。
+ *
+ * 29 バイトなら 7 通のレポートで約 85ms。既定の 3 秒でも足りるが、
+ * デバイスが直前のコマンド (タイプなど) で塞がっていることがあるので、
+ * その 1.2 秒を跨げるだけの余裕を持たせる。
+ * @type {number}
+ */
+var COMMAND_READ_TIMEOUT = 4000;
+
+/**
+ * 帽子ブロックを起こしに行く間隔 (ms)。
+ *
+ * 見るのは手元に溜まった文字列だけで、USB の往復は起きない。
+ * Scratch の 1 フレーム (約 33ms) と同じ程度にしてある。
+ * @type {number}
+ */
+var SERIAL_HAT_INTERVAL_MS = 33;
+
+/**
+ * 受け取ったまま読まれていない文字列をどこまで溜めるか。
+ *
+ * 読み取りブロックを置かずに動かし続けると、ここが際限なく伸びる。
+ * 上限に達したら**古い方から捨てる**。新しい方を捨てると、
+ * ずっと前のデータを読み続けることになって気付きにくい。
+ * @type {number}
+ */
+var SERIAL_RX_LIMIT = 4096;
+
+/**
+ * ボーレートのメニュー。
+ *
+ * デバイスは BRR = 48000000 / baud を書くだけなので、この一覧でなければ
+ * ならない理由はない。よく使うものを並べているだけで、acceptReporters を
+ * 立ててあるので変数から任意の値も渡せる。
+ * @type {Array<{text: string, value: string}>}
+ */
+var BAUD_ITEMS = [1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200].map(function (v) {
+  return {
+    text: String(v),
+    value: String(v)
+  };
+});
+
+/**
+ * 区切り文字のメニューの値と、その中身。
+ *
+ * ⚠ 値は必ず大文字にすること。帽子ブロックの照合で
+ *   `runtime.startHats()` が `optMatchFields` を `toUpperCase()` するため、
+ *   小文字の値にすると永久に一致しない (scratch-vm の runtime.js)。
+ *
+ * 「つぎのいずれかの文字」なので、1 つの選択肢が複数の文字を持てる。
+ * 改行は送り手によって LF だけのことも CR+LF のこともあるので、両方を含める。
+ * @type {object}
+ */
+var TERMINATOR_CHARS = {
+  NEWLINE: '\n\r',
+  COMMA: ',',
+  TAB: '\t',
+  SPACE: ' '
+};
+
+/**
+ * シリアルが使うピン。begin した後は弾く。
+ *
+ * USART1 の TX / RX は CH32V003 では動かせない。D15 = PD5 = A5、D16 = PD6 = A6。
+ * デバイス側でも弾いているが、あちらは RSP_ERR を返すだけで理由を言えない。
+ * ここで止めて、何が起きたのかを開発者コンソールへ出す。
+ * @type {{digital: Array<number>, analog: Array<number>}}
+ */
+var SERIAL_PINS = {
+  digital: [15, 16],
+  analog: [5, 6]
+};
+
+/**
  * スケッチの入手先。説明ブロックとコンソールの両方がここを案内する。
  *
  * リポジトリ内のパスを案内してはいけない。Xcratch の利用者は URL を貼っただけで、
@@ -4709,6 +4870,89 @@ var message = {
     ja: '下',
     'ja-Hira': 'した',
     en: 'down'
+  },
+  // ── シリアル通信 ────────────────────────────────────────────────────────
+  // どのブロックも「シリアル通信」で始める。ピンやキーボードのブロックと
+  // 並ぶので、どの機能のものか一目で分かるようにするため。
+  serialBegin: {
+    ja: 'シリアル通信 ボーレート [BAUD] で開始する',
+    'ja-Hira': 'シリアルつうしん ボーレート [BAUD] で かいしする',
+    en: 'serial: start at [BAUD] baud'
+  },
+  serialWriteLine: {
+    ja: 'シリアル通信 1行書き出す [TEXT]',
+    'ja-Hira': 'シリアルつうしん 1ぎょう かきだす [TEXT]',
+    en: 'serial: write line [TEXT]'
+  },
+  serialWriteNumber: {
+    ja: 'シリアル通信 数値を文字で書き出す [VALUE]',
+    'ja-Hira': 'シリアルつうしん すうちを もじで かきだす [VALUE]',
+    en: 'serial: write number [VALUE] as text'
+  },
+  serialWriteNamed: {
+    ja: 'シリアル通信 名前と数値を書き出す [NAME] = [VALUE]',
+    'ja-Hira': 'シリアルつうしん なまえと すうちを かきだす [NAME] = [VALUE]',
+    en: 'serial: write [NAME] = [VALUE]'
+  },
+  serialWriteText: {
+    ja: 'シリアル通信 文字列を書き出す [TEXT]',
+    'ja-Hira': 'シリアルつうしん もじれつを かきだす [TEXT]',
+    en: 'serial: write text [TEXT]'
+  },
+  serialWriteList: {
+    ja: 'シリアル通信 複数の数値をカンマくぎりで書き出す [LIST]',
+    'ja-Hira': 'シリアルつうしん ふくすうの すうちを カンマくぎりで かきだす [LIST]',
+    en: 'serial: write list [LIST] as comma separated values'
+  },
+  serialReadLine: {
+    ja: 'シリアル通信 1行読み取る',
+    'ja-Hira': 'シリアルつうしん 1ぎょう よみとる',
+    en: 'serial: read line'
+  },
+  serialReadUntil: {
+    ja: 'シリアル通信 つぎのいずれかの文字の手前まで読み取る [TERMINATOR]',
+    'ja-Hira': 'シリアルつうしん つぎの いずれかの もじの てまえまで よみとる [TERMINATOR]',
+    en: 'serial: read up to [TERMINATOR]'
+  },
+  whenSerialReceived: {
+    ja: 'シリアル通信 つぎのいずれかの文字を受信したとき [TERMINATOR]',
+    'ja-Hira': 'シリアルつうしん つぎの いずれかの もじを じゅしんしたとき [TERMINATOR]',
+    en: 'when serial receives [TERMINATOR]'
+  },
+  serialReceived: {
+    ja: 'シリアル通信 [TERMINATOR] を受信した',
+    'ja-Hira': 'シリアルつうしん [TERMINATOR] を じゅしんした',
+    en: 'serial received [TERMINATOR]'
+  },
+  serialReadText: {
+    ja: 'シリアル通信 文字列を読み取る',
+    'ja-Hira': 'シリアルつうしん もじれつを よみとる',
+    en: 'serial: read text'
+  },
+  terminatorNewline: {
+    ja: '改行コード',
+    'ja-Hira': 'かいぎょうコード',
+    en: 'newline'
+  },
+  terminatorComma: {
+    ja: 'カンマ',
+    'ja-Hira': 'カンマ',
+    en: 'comma'
+  },
+  terminatorTab: {
+    ja: 'タブ',
+    'ja-Hira': 'タブ',
+    en: 'tab'
+  },
+  terminatorSpace: {
+    ja: 'スペース',
+    'ja-Hira': 'スペース',
+    en: 'space'
+  },
+  listNone: {
+    ja: 'リストがありません',
+    'ja-Hira': 'リストが ありません',
+    en: 'no list'
   }
 };
 
@@ -4826,9 +5070,60 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
      */
     this._modifierCounts = new Map();
 
+    /**
+     * シリアル通信を開始したか。「ボーレート [ ] で開始する」で立つ。
+     *
+     * 立っている間だけ D15 / D16 / A5 / A6 を弾く。シリアルを使わない
+     * 作品からこの 4 つを取り上げないため、既定では弾かない。
+     * @type {boolean}
+     */
+    this._serialOpen = false;
+
+    /**
+     * 受け取ったまま、まだ読まれていない文字列。
+     *
+     * デバイスの 256 バイトのリングバッファから吸い出したものがここに積まれる。
+     * 「1行読み取る」などのブロックは、デバイスではなくここから取る。
+     * だから読み取りブロックは USB の往復を伴わず、その場で答えられる。
+     * @type {string}
+     */
+    this._serialRx = '';
+
+    /**
+     * 吸い出しが走っている間の Promise。二重に走らせないための番人。
+     * @type {?Promise}
+     */
+    this._serialPumping = null;
+
+    /**
+     * UTF-8 のデコーダ。
+     *
+     * 1 回の読み出しは 29 バイトで切れるので、マルチバイト文字が
+     * その境目にまたがる。1 回ずつデコードすると文字化けするため、
+     * stream: true で持ち越させる。
+     * @type {?TextDecoder}
+     */
+    this._serialDecoder = null;
+
+    /**
+     * 帽子ブロックを起こすためのタイマー。
+     *
+     * 帽子は isEdgeActivated: false にしてあるので runtime は見に来ない。
+     * ここから startHats() を呼ぶ。受信したときだけでなく周期で見るのは、
+     * 1 回の帽子で 1 行しか読まない作りでも、溜まった分を順に処理させるため。
+     * @type {?number}
+     */
+    this._serialHatTimer = null;
+
     // USB が抜かれたら processor から呼ばれる。
     this.processor.onDisconnected = function () {
       return _this._handleDisconnectError();
+    };
+
+    // デバイスからの受信通知 (0x54)。これがシリアルの「割り込み」の出口。
+    // ポーリングしていないので、届くまで USB の往復は発生しない。
+    this.processor.onSerialData = function () {
+      return _this._pumpSerial();
     };
 
     // 停止ボタン (と緑の旗) で、キーとマウスのボタンを必ず離す。
@@ -5119,6 +5414,161 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
             }
           }
         }, '---',
+        // ── シリアル通信 (Tx = D15 / Rx = D16) ──────────────────────
+        //
+        // 書き出しのブロックが 5 つあるが、デバイスへ届くのは
+        // どれも SERIAL_WRITE の 1 種類だけ。CSV も「名前 = 値」も
+        // ここで文字列に組み立てている。サーボの角度と同じ考え方で、
+        // 書式を足しても基板を焼き直さずに済む。
+        {
+          opcode: 'serialBegin',
+          text: this._getText('serialBegin'),
+          blockType: BlockType.COMMAND,
+          arguments: {
+            BAUD: {
+              type: ArgumentType.NUMBER,
+              defaultValue: 9600,
+              menu: 'BAUD'
+            }
+          }
+        }, {
+          opcode: 'serialWriteLine',
+          text: this._getText('serialWriteLine'),
+          blockType: BlockType.COMMAND,
+          arguments: {
+            TEXT: {
+              // ⚠ 空文字にしてはいけない。scratch-vm は defaultValue が
+              //   空だと <field> ごと出さないので (runtime.js の
+              //   `if (defaultValue && fieldName)`)、入力欄に
+              //   "undefined" と表示される。
+              type: ArgumentType.STRING,
+              defaultValue: 'Hello'
+            }
+          }
+        }, {
+          opcode: 'serialWriteNumber',
+          text: this._getText('serialWriteNumber'),
+          blockType: BlockType.COMMAND,
+          arguments: {
+            VALUE: {
+              type: ArgumentType.NUMBER,
+              defaultValue: 0
+            }
+          }
+        }, {
+          opcode: 'serialWriteNamed',
+          text: this._getText('serialWriteNamed'),
+          blockType: BlockType.COMMAND,
+          arguments: {
+            NAME: {
+              type: ArgumentType.STRING,
+              defaultValue: 'x'
+            },
+            VALUE: {
+              type: ArgumentType.NUMBER,
+              defaultValue: 0
+            }
+          }
+        }, {
+          opcode: 'serialWriteText',
+          text: this._getText('serialWriteText'),
+          blockType: BlockType.COMMAND,
+          arguments: {
+            // 空文字を既定にできない理由は serialWriteLine を参照
+            TEXT: {
+              type: ArgumentType.STRING,
+              defaultValue: 'Hello'
+            }
+          }
+        }, {
+          // ⚠ 図の「配列 [0] [1] ⊖ ⊕」のような、入力の数を増減できる
+          //   ブロックは scratch-blocks に無い。作れるのは入力の数が
+          //   固定のブロックだけで、これは Scratch 本体の制約。
+          //
+          //   そこで、Scratch のリストを選ぶ形にしてある。
+          //   数を増やしたいときはリストに足せばよく、⊕ を押すのと
+          //   同じことがブロックを組み替えずにできる。
+          opcode: 'serialWriteList',
+          text: this._getText('serialWriteList'),
+          blockType: BlockType.COMMAND,
+          arguments: {
+            LIST: {
+              type: ArgumentType.STRING,
+              // 既定値を空にすると <field> ごと出ずにドロップダウンが
+              // 消えてしまう (serialWriteLine のコメントを参照)。
+              // リストは作品ごとに違うので、今ある先頭を既定にする。
+              defaultValue: this.getListItems()[0].value,
+              menu: 'LIST'
+            }
+          }
+        }, {
+          // ⚠ 読み取りブロックは「読むと消える」。
+          //
+          //   チェックを入れるとステージのモニターが毎フレームこれを
+          //   実行するので、素直に書くと受信データをモニターが食べて
+          //   しまい、スクリプト側には食べ残ししか回らない。
+          //   「ほとんど受信できない」に見える。
+          //
+          //   だからといってチェックボックスを消す (disableMonitor) のは
+          //   やりすぎだった。受信内容をステージに出したいのは自然な
+          //   使い方で、取り上げる理由がない。
+          //
+          //   モニターから呼ばれたときだけ消さずに覗く形にしてある
+          //   (serialReadLine() の実装を参照)。scratch-vm 自身も
+          //   リストのモニターで同じ判定をしている
+          //   (src/blocks/scratch3_data.js の util.thread.updateMonitor)。
+          opcode: 'serialReadLine',
+          text: this._getText('serialReadLine'),
+          blockType: BlockType.REPORTER
+        }, {
+          opcode: 'serialReadUntil',
+          text: this._getText('serialReadUntil'),
+          blockType: BlockType.REPORTER,
+          arguments: {
+            TERMINATOR: {
+              type: ArgumentType.STRING,
+              defaultValue: 'NEWLINE',
+              menu: 'TERMINATOR'
+            }
+          }
+        }, {
+          // モニターのときは消さずに覗く。理由は serialReadLine を参照。
+          opcode: 'serialReadText',
+          text: this._getText('serialReadText'),
+          blockType: BlockType.REPORTER
+        }, {
+          // 帽子ブロック。デバイスからの受信通知で動き出す。
+          //
+          // isEdgeActivated: false にしてあるので runtime は毎フレーム
+          // 見に来ない。起こすのは _serialHatTimer からの startHats() だけ。
+          // つまり待っている間、USB の往復は一度も起きない。
+          //
+          // ⚠ TERMINATOR のメニューは acceptReporters: false でなければ
+          //   ならない。true にすると入力 (はめ込み口) になってしまい、
+          //   startHats() の照合が見るフィールドが存在しなくなる。
+          opcode: 'whenSerialReceived',
+          text: this._getText('whenSerialReceived'),
+          blockType: BlockType.HAT,
+          isEdgeActivated: false,
+          arguments: {
+            TERMINATOR: {
+              type: ArgumentType.STRING,
+              defaultValue: 'NEWLINE',
+              menu: 'TERMINATOR_FIELD'
+            }
+          }
+        }, {
+          opcode: 'serialReceived',
+          text: this._getText('serialReceived'),
+          blockType: BlockType.BOOLEAN,
+          arguments: {
+            TERMINATOR: {
+              type: ArgumentType.STRING,
+              defaultValue: 'NEWLINE',
+              menu: 'TERMINATOR'
+            }
+          }
+        }, '---',
         // UIAPduino は HID なのでキーボードとマウスそのものになれる。
         // ここから下のブロックは Scratch ではなく PC 本体を操作する。
         //
@@ -5264,7 +5714,7 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
               defaultValue: 3
             }
           }
-        }, {
+        }, '---', {
           opcode: 'releaseAllInput',
           text: this._getText('releaseAllInput'),
           blockType: BlockType.COMMAND
@@ -5352,6 +5802,33 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
               text: this._getText('wheelUp'),
               value: '1'
             }]
+          },
+          // よく使うボーレートを並べているだけ。デバイスは
+          // BRR = 48000000 / baud を書くので、変数から他の値も渡せる。
+          BAUD: {
+            acceptReporters: true,
+            items: BAUD_ITEMS
+          },
+          // 区切り文字。値は TERMINATOR_CHARS のキー。
+          TERMINATOR: {
+            acceptReporters: true,
+            items: 'getTerminatorItems'
+          },
+          // 帽子ブロック専用。中身は TERMINATOR と同じだが
+          // acceptReporters を false にしてある。
+          //
+          // ⚠ 分けてあるのは、true だとメニューが「はめ込み口」になり、
+          //   ブロックのフィールドとして残らないため。startHats() の
+          //   optMatchFields はフィールドしか見ないので、
+          //   共用すると帽子がどの区切り文字のものか照合できなくなる。
+          TERMINATOR_FIELD: {
+            acceptReporters: false,
+            items: 'getTerminatorItems'
+          },
+          // 作品にあるリストの一覧。作るたびに変わるので関数で作る。
+          LIST: {
+            acceptReporters: false,
+            items: 'getListItems'
           }
         }
       };
@@ -5634,10 +6111,32 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
   }, {
     key: "_emitDisconnected",
     value: function _emitDisconnected() {
+      // シリアルは基板の中の状態なので、離れたら覚えていても意味がない。
+      // 立てたままだと、繋ぎ直した後も D15 / D16 を弾き続ける。
+      this._closeSerial();
       if (!this._notifiedConnected) return false;
       this._notifiedConnected = false;
       this.runtime.emit(this.runtime.constructor.PERIPHERAL_DISCONNECTED);
       return true;
+    }
+
+    /**
+     * シリアルの状態を捨てる。切断のときに呼ぶ。
+     *
+     * 基板は繋ぎ直せば起動からやり直しになるので、こちらも忘れる。
+     * タイマーを止めないと、切れた後も帽子ブロックを起こし続ける。
+     * @returns {void}
+     */
+  }, {
+    key: "_closeSerial",
+    value: function _closeSerial() {
+      this._serialOpen = false;
+      this._serialRx = '';
+      this._serialDecoder = null;
+      if (this._serialHatTimer !== null) {
+        clearInterval(this._serialHatTimer);
+        this._serialHatTimer = null;
+      }
     }
 
     /**
@@ -5685,17 +6184,23 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
   }, {
     key: "pinMode",
     value: function pinMode(args) {
-      return this.processor.request(CMD.PIN_MODE, [Cast.toNumber(args.PIN), Cast.toNumber(args.MODE)]).catch(function () {});
+      var pin = Cast.toNumber(args.PIN);
+      if (!this._pinAvailable(pin, false)) return Promise.resolve();
+      return this.processor.request(CMD.PIN_MODE, [pin, Cast.toNumber(args.MODE)]).catch(function () {});
     }
   }, {
     key: "digitalWrite",
     value: function digitalWrite(args) {
-      return this.processor.request(CMD.DIGITAL_WRITE, [Cast.toNumber(args.PIN), Cast.toNumber(args.VALUE)]).catch(function () {});
+      var pin = Cast.toNumber(args.PIN);
+      if (!this._pinAvailable(pin, false)) return Promise.resolve();
+      return this.processor.request(CMD.DIGITAL_WRITE, [pin, Cast.toNumber(args.VALUE)]).catch(function () {});
     }
   }, {
     key: "digitalRead",
     value: function digitalRead(args) {
-      return this.processor.request(CMD.DIGITAL_READ, [Cast.toNumber(args.PIN)]).then(function (value) {
+      var pin = Cast.toNumber(args.PIN);
+      if (!this._pinAvailable(pin, false)) return Promise.resolve(false);
+      return this.processor.request(CMD.DIGITAL_READ, [pin]).then(function (value) {
         return value !== 0;
       }).catch(function () {
         return false;
@@ -5742,6 +6247,12 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
     key: "_analogRead",
     value: function _analogRead(channel) {
       var _this5 = this;
+      // シリアルに取られている間は前回値を返さない。
+      //
+      // 前回値は「一瞬読めなかった」ための備えで、ここでは事情が違う。
+      // これから先ずっと読めないのに古い値を出し続けると、値が止まった
+      // ように見えるだけで、原因が配線なのか何なのか分からなくなる。
+      if (!this._pinAvailable(channel, true)) return Promise.resolve(0);
       return this.processor.request(CMD.ANALOG_READ, [channel]).then(function (value) {
         _this5._lastAnalog[channel] = value;
         return value;
@@ -5889,6 +6400,9 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
     key: "distance",
     value: function distance() {
       var cfg = this._distance;
+      if (!this._pinAvailable(cfg.trig, false) || !this._pinAvailable(cfg.echo, false)) {
+        return Promise.resolve(0);
+      }
       return this.processor.request(CMD.DISTANCE, [cfg.trig, cfg.echo]).then(function (us) {
         return us === 0 ? 0 : Math.round(us / US_PER_CM * 10) / 10;
       }).catch(function () {
@@ -6291,6 +6805,511 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
     key: "clearQueue",
     value: function clearQueue() {
       this.processor.resetQueue();
+    }
+
+    // ── シリアル通信 ────────────────────────────────────────────────────────
+    //
+    // デバイスが運ぶのはバイト列だけ。行に切るのも CSV に組むのも、
+    // 受け取ったものを溜めておくのも、すべてここでやる。
+    // 書式を足しても基板を焼き直さずに済むようにするため (サーボと同じ)。
+
+    /**
+     * 区切り文字のメニューの中身。
+     * @returns {Array<{text: string, value: string}>} メニュー項目
+     */
+  }, {
+    key: "getTerminatorItems",
+    value: function getTerminatorItems() {
+      return [{
+        text: this._getText('terminatorNewline'),
+        value: 'NEWLINE'
+      }, {
+        text: this._getText('terminatorComma'),
+        value: 'COMMA'
+      }, {
+        text: this._getText('terminatorTab'),
+        value: 'TAB'
+      }, {
+        text: this._getText('terminatorSpace'),
+        value: 'SPACE'
+      }];
+    }
+
+    /**
+     * 作品にあるリストの一覧。ステージとスプライトの両方から集める。
+     *
+     * メニューは空にできないので、1 つも無ければ案内を 1 行だけ出す。
+     * @returns {Array<{text: string, value: string}>} メニュー項目
+     */
+  }, {
+    key: "getListItems",
+    value: function getListItems() {
+      var names = new Set();
+      var _iterator2 = _createForOfIteratorHelper(this.runtime.targets),
+        _step2;
+      try {
+        for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
+          var target = _step2.value;
+          if (!target.isOriginal) continue;
+          for (var _i = 0, _Object$keys = Object.keys(target.variables || {}); _i < _Object$keys.length; _i++) {
+            var id = _Object$keys[_i];
+            var variable = target.variables[id];
+            if (variable.type === 'list') names.add(variable.name);
+          }
+        }
+      } catch (err) {
+        _iterator2.e(err);
+      } finally {
+        _iterator2.f();
+      }
+      if (names.size === 0) {
+        // 値を空にしないこと。空だとブロックのフィールドが出ない
+        // (getInfo() の LIST 引数のコメントを参照)。
+        return [{
+          text: this._getText('listNone'),
+          value: '-'
+        }];
+      }
+      return Array.from(names).sort().map(function (name) {
+        return {
+          text: name,
+          value: name
+        };
+      });
+    }
+
+    /**
+     * 名前からリストの中身を探す。スプライト側を先に見る。
+     * @param {string} name - リスト名
+     * @param {object} util - ブロックの実行文脈 (target を持つ)
+     * @returns {?Array} 見つかった中身。無ければ null
+     */
+  }, {
+    key: "_findList",
+    value: function _findList(name, util) {
+      var targets = [];
+      if (util && util.target) targets.push(util.target);
+      var stage = this.runtime.getTargetForStage();
+      if (stage) targets.push(stage);
+      for (var _i2 = 0, _targets = targets; _i2 < _targets.length; _i2++) {
+        var target = _targets[_i2];
+        for (var _i3 = 0, _Object$keys2 = Object.keys(target.variables || {}); _i3 < _Object$keys2.length; _i3++) {
+          var id = _Object$keys2[_i3];
+          var variable = target.variables[id];
+          if (variable.type === 'list' && variable.name === name) return variable.value;
+        }
+      }
+      return null;
+    }
+
+    /**
+     * このピンがシリアルに取られていないか確かめる。
+     *
+     * デバイス側も弾くが、あちらは RSP_ERR を返すだけで理由を言えない。
+     * しかもブロックの実装はエラーを握りつぶすので、利用者から見ると
+     * 「何も起きない」で終わる。せめて理由をコンソールへ出す。
+     *
+     * @param {number} pin - ピン番号
+     * @param {boolean} analog - アナログ番号として見るなら true
+     * @returns {boolean} 使えるなら true
+     */
+  }, {
+    key: "_pinAvailable",
+    value: function _pinAvailable(pin, analog) {
+      if (!this._serialOpen) return true;
+      var taken = analog ? SERIAL_PINS.analog : SERIAL_PINS.digital;
+      if (!taken.includes(pin)) return true;
+      console.warn("[uiapduino] ".concat(analog ? 'A' : 'D').concat(pin, " is used by serial (Tx = D15 / Rx = D16). ") + 'シリアル通信を開始している間、D15 / D16 / A5 / A6 は使えません。');
+      return false;
+    }
+
+    /**
+     * 文字列をデバイスへ送る。30 バイトずつに切って順に送る。
+     *
+     * ⚠ キーボードの「[ ] とタイプする」と違い、ASCII に絞らない。
+     *   相手はキーボードではなく通信線なので、どんなバイトを送るかは
+     *   受け手との取り決めしだい。UTF-8 のまま流す。
+     *
+     * @param {string} text - 送る文字列
+     * @returns {Promise} 送り終わったら resolve
+     */
+  }, {
+    key: "_serialSend",
+    value: function _serialSend(text) {
+      var _this7 = this;
+      if (!this._serialOpen) {
+        console.warn('[uiapduino] serial is not started; place the "start at [ ] baud" block first');
+        return Promise.resolve();
+      }
+      var bytes = Array.from(new TextEncoder().encode(text));
+      if (bytes.length === 0) return Promise.resolve();
+      var chain = Promise.resolve();
+      var _loop2 = function _loop2() {
+        var chunk = bytes.slice(i, i + SERIAL_WRITE_CHUNK);
+        chain = chain.then(function () {
+          return _this7.processor.request(CMD.SERIAL_WRITE, [chunk.length].concat(_toConsumableArray(chunk)));
+        });
+      };
+      for (var i = 0; i < bytes.length; i += SERIAL_WRITE_CHUNK) {
+        _loop2();
+      }
+      return chain.catch(function () {});
+    }
+  }, {
+    key: "serialBegin",
+    value: function serialBegin(args) {
+      var _this8 = this;
+      var baud = Math.max(1, Math.round(Cast.toNumber(args.BAUD)) || 0);
+      // デコーダは begin のたびに作り直す。前回の途中で切れたバイトを
+      // 持ち越すと、開き直した最初の 1 文字が化ける。
+      this._serialDecoder = new TextDecoder('utf-8', {
+        fatal: false
+      });
+      this._serialRx = '';
+      return this.processor.request(CMD.SERIAL_BEGIN, [baud & 0xFF, baud >> 8 & 0xFF, baud >> 16 & 0xFF, baud >> 24 & 0xFF]).then(function () {
+        _this8._serialOpen = true;
+        _this8._startSerialHatTimer();
+      }).catch(function () {});
+    }
+  }, {
+    key: "serialWriteLine",
+    value: function serialWriteLine(args) {
+      // 改行は CR+LF。Arduino の println() と同じで、どちらの受け手にも通る。
+      return this._serialSend("".concat(Cast.toString(args.TEXT), "\r\n"));
+    }
+  }, {
+    key: "serialWriteNumber",
+    value: function serialWriteNumber(args) {
+      return this._serialSend("".concat(Cast.toString(Cast.toNumber(args.VALUE)), "\r\n"));
+    }
+  }, {
+    key: "serialWriteNamed",
+    value: function serialWriteNamed(args) {
+      return this._serialSend("".concat(Cast.toString(args.NAME), " = ").concat(Cast.toString(Cast.toNumber(args.VALUE)), "\r\n"));
+    }
+  }, {
+    key: "serialWriteText",
+    value: function serialWriteText(args) {
+      // 改行を付けない。続けて書き出せば 1 行につながる。
+      return this._serialSend(Cast.toString(args.TEXT));
+    }
+  }, {
+    key: "serialWriteList",
+    value: function serialWriteList(args, util) {
+      var name = Cast.toString(args.LIST);
+      var list = this._findList(name, util);
+      if (list === null) {
+        console.warn("[uiapduino] list not found: ".concat(name));
+        return Promise.resolve();
+      }
+      return this._serialSend("".concat(list.map(function (v) {
+        return Cast.toString(v);
+      }).join(','), "\r\n"));
+    }
+
+    /**
+     * デバイスに溜まっている受信データを、空になるまで吸い出す。
+     *
+     * 受信通知 (0x54) を合図に呼ばれる。デバイスは読みに来られても
+     * まだ残っていればもう一度知らせるので、ここで空になるまで回す。
+     *
+     * 二重に走らせない。同時に 2 本走ると、読み出しの順序が入れ替わって
+     * 行の途中で混ざる (キューは直列でも、この関数の中の分割が交錯する)。
+     *
+     * @returns {Promise} 吸い出しが終わったら resolve
+     */
+  }, {
+    key: "_pumpSerial",
+    value: function _pumpSerial() {
+      var _this9 = this;
+      if (!this._serialOpen || !this.processor.isConnected()) return Promise.resolve();
+      if (this._serialPumping) return this._serialPumping;
+      this._serialPumping = this._readSerialUntilEmpty().catch(function () {}).then(function () {
+        _this9._serialPumping = null;
+      });
+      return this._serialPumping;
+    }
+
+    /**
+     * 空になるまで SERIAL_READ を繰り返す。
+     * @returns {Promise} 読み終わったら resolve
+     */
+  }, {
+    key: "_readSerialUntilEmpty",
+    value: (function () {
+      var _readSerialUntilEmpty2 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime.mark(function _callee() {
+        var i, packet, length;
+        return _regeneratorRuntime.wrap(function (_context) {
+          while (1) switch (_context.prev = _context.next) {
+            case 0:
+              i = 0;
+            case 1:
+              if (!(i < SERIAL_PUMP_MAX)) {
+                _context.next = 4;
+                break;
+              }
+              _context.next = 2;
+              return this.processor.request(CMD.SERIAL_READ, [SERIAL_READ_CHUNK], COMMAND_READ_TIMEOUT, true);
+            case 2:
+              packet = _context.sent;
+              length = packet[0] || 0;
+              if (length > 0) this._appendSerial(packet.slice(1, 1 + length));
+              // 満たずに返ってきたら、デバイス側は空になっている
+              if (!(length < SERIAL_READ_CHUNK)) {
+                _context.next = 3;
+                break;
+              }
+              return _context.abrupt("return");
+            case 3:
+              i++;
+              _context.next = 1;
+              break;
+            case 4:
+            case "end":
+              return _context.stop();
+          }
+        }, _callee, this);
+      }));
+      function _readSerialUntilEmpty() {
+        return _readSerialUntilEmpty2.apply(this, arguments);
+      }
+      return _readSerialUntilEmpty;
+    }()
+    /**
+     * 吸い出したバイト列を文字列にして溜める。
+     * @param {Array<number>} bytes - 受け取ったバイト列
+     * @returns {void}
+     */
+    )
+  }, {
+    key: "_appendSerial",
+    value: function _appendSerial(bytes) {
+      if (!this._serialDecoder) return;
+      // stream: true でないと、マルチバイト文字が 29 バイトの切れ目に
+      // またがったときに化ける。持ち越させる。
+      var text = this._serialDecoder.decode(new Uint8Array(bytes), {
+        stream: true
+      });
+      if (!text) return;
+      this._serialRx += text;
+      if (this._serialRx.length > SERIAL_RX_LIMIT) {
+        // 溢れたら古い方から捨てる。新しい方を捨てると、いつまでも
+        // 昔のデータを読み続けることになって気付けない。
+        this._serialRx = this._serialRx.slice(-SERIAL_RX_LIMIT);
+      }
+    }
+
+    /**
+     * 帽子ブロックを起こすタイマーを回し始める。
+     *
+     * 見るのは手元の `_serialRx` だけなので、USB の往復は起きない。
+     * 周期で見ているのは、1 回の帽子で 1 行しか読まない作りでも
+     * 溜まった行を順に処理させるため。startHats() は同じ帽子のスクリプトが
+     * まだ動いていれば起こさないので、重なることはない。
+     * @returns {void}
+     */
+  }, {
+    key: "_startSerialHatTimer",
+    value: function _startSerialHatTimer() {
+      var _this0 = this;
+      if (this._serialHatTimer !== null) return;
+      if (typeof setInterval !== 'function') return;
+      this._serialHatTimer = setInterval(function () {
+        return _this0._fireSerialHats();
+      }, SERIAL_HAT_INTERVAL_MS);
+    }
+
+    /**
+     * 溜まっている文字に応じて帽子ブロックを起こす。
+     * @returns {void}
+     */
+  }, {
+    key: "_fireSerialHats",
+    value: function _fireSerialHats() {
+      if (this._serialRx.length === 0) return;
+      for (var _i4 = 0, _Object$keys3 = Object.keys(TERMINATOR_CHARS); _i4 < _Object$keys3.length; _i4++) {
+        var kind = _Object$keys3[_i4];
+        if (this._indexOfTerminator(kind) < 0) continue;
+        this.runtime.startHats('uiapduino_whenSerialReceived', {
+          TERMINATOR: kind
+        });
+      }
+    }
+
+    /**
+     * 溜まっている文字列の中で、その区切り文字が最初に現れる位置。
+     * @param {string} kind - TERMINATOR_CHARS のキー
+     * @returns {number} 位置。無ければ -1
+     */
+  }, {
+    key: "_indexOfTerminator",
+    value: function _indexOfTerminator(kind) {
+      var chars = TERMINATOR_CHARS[kind] || TERMINATOR_CHARS.NEWLINE;
+      var found = -1;
+      var _iterator3 = _createForOfIteratorHelper(chars),
+        _step3;
+      try {
+        for (_iterator3.s(); !(_step3 = _iterator3.n()).done;) {
+          var ch = _step3.value;
+          var at = this._serialRx.indexOf(ch);
+          if (at >= 0 && (found < 0 || at < found)) found = at;
+        }
+      } catch (err) {
+        _iterator3.e(err);
+      } finally {
+        _iterator3.f();
+      }
+      return found;
+    }
+
+    /**
+     * 区切り文字の手前までを取り出して、溜めから消す。
+     *
+     * 区切り文字そのものも消す。改行だけは CR+LF が続くことがあるので、
+     * 続いていればまとめて消す。残すと次の行が空行から始まる。
+     *
+     * @param {string} kind - TERMINATOR_CHARS のキー
+     * @returns {string} 取り出した文字列。区切り文字がまだ来ていなければ空文字
+     */
+  }, {
+    key: "_takeUntilTerminator",
+    value: function _takeUntilTerminator(kind) {
+      var at = this._indexOfTerminator(kind);
+      if (at < 0) return '';
+      var text = this._serialRx.slice(0, at);
+      var rest = this._serialRx.slice(at + 1);
+      if (kind === 'NEWLINE' && rest.length > 0 && (rest[0] === '\n' || rest[0] === '\r')) {
+        rest = rest.slice(1);
+      }
+      this._serialRx = rest;
+      return text;
+    }
+
+    /**
+     * 読み取りブロックの共通処理。
+     *
+     * 溜めが空なら、一度だけデバイスを見に行ってから答える。通知が
+     * 取りこぼされた場合 (レポートの上書き) に、ブロックが永久に
+     * 空文字を返し続けるのを防ぐため。
+     *
+     * @param {Function} take - 溜めから取り出す関数
+     * @returns {string|Promise<string>} 取り出した文字列
+     */
+  }, {
+    key: "_readSerial",
+    value: function _readSerial(take) {
+      var first = take();
+      if (first !== '') return first;
+      if (!this._serialOpen) {
+        // 開いていないときも空文字になるので、「届いていない」と区別が付かない。
+        //
+        // ⚠ 読み込み直すと拡張機能は作り直されるので、ここは false に戻る。
+        //   デバイス側は基板の電源が入ったままなら開いたままだが、
+        //   Scratch 側は忘れている。利用者から見ると「昨日は動いたのに
+        //   今日は何も出ない」になるので、必ず理由を出す。
+        console.warn('[uiapduino] serial is not started; ' + 'シリアル通信は開始されていません。' + '「シリアル通信 ボーレート [ ] で開始する」を先に実行してください' + '（ページを読み込み直すと、開始し直しが必要です）');
+        return '';
+      }
+      return this._pumpSerial().then(function () {
+        return take();
+      });
+    }
+
+    /**
+     * ステージのモニター (チェックボックス) から呼ばれているか。
+     *
+     * モニターは毎フレーム走るので、読むと消えるブロックをそのまま実行させると
+     * 受信データを表示しては捨ててしまい、スクリプト側に届かなくなる。
+     * scratch-vm 自身もリストのモニターで同じ判定をしている
+     * (src/blocks/scratch3_data.js)。
+     *
+     * @param {?BlockUtility} util - ブロックの実行文脈
+     * @returns {boolean} モニターからの呼び出しなら true
+     */
+  }, {
+    key: "_isMonitor",
+    value: function _isMonitor(util) {
+      return Boolean(util && util.thread && util.thread.updateMonitor);
+    }
+
+    /**
+     * 区切り文字の手前までを、消さずに覗く。
+     * @param {string} kind - TERMINATOR_CHARS のキー
+     * @returns {string} 次の 1 件。まだ区切り文字が来ていなければ空文字
+     */
+  }, {
+    key: "_peekUntilTerminator",
+    value: function _peekUntilTerminator(kind) {
+      var at = this._indexOfTerminator(kind);
+      return at < 0 ? '' : this._serialRx.slice(0, at);
+    }
+  }, {
+    key: "serialReadLine",
+    value: function serialReadLine(args, util) {
+      var _this1 = this;
+      // モニターは覗くだけ。デバイスも見に行かない
+      // (毎フレーム USB の往復が起きて、スクリプトのコマンドを待たせる)。
+      if (this._isMonitor(util)) return this._peekUntilTerminator('NEWLINE');
+      return this._readSerial(function () {
+        return _this1._takeUntilTerminator('NEWLINE');
+      });
+    }
+  }, {
+    key: "serialReadUntil",
+    value: function serialReadUntil(args) {
+      var _this10 = this;
+      // 引数を持つのでモニターには出ない (チェックボックスが付かない)。
+      var kind = this._toTerminatorKind(args.TERMINATOR);
+      return this._readSerial(function () {
+        return _this10._takeUntilTerminator(kind);
+      });
+    }
+  }, {
+    key: "serialReadText",
+    value: function serialReadText(args, util) {
+      var _this11 = this;
+      if (this._isMonitor(util)) return this._serialRx;
+      return this._readSerial(function () {
+        var text = _this11._serialRx;
+        _this11._serialRx = '';
+        return text;
+      });
+    }
+  }, {
+    key: "serialReceived",
+    value: function serialReceived(args) {
+      var kind = this._toTerminatorKind(args.TERMINATOR);
+      return this._indexOfTerminator(kind) >= 0;
+    }
+
+    /**
+     * 「つぎのいずれかの文字を受信したとき」の帽子ブロック。
+     *
+     * isEdgeActivated: false なので runtime は見に来ない。起こすのは
+     * _fireSerialHats() だけで、そこで区切り文字の照合も済んでいる。
+     * ここまで来たら動かしてよい。
+     * @returns {boolean} 常に true
+     */
+  }, {
+    key: "whenSerialReceived",
+    value: function whenSerialReceived() {
+      return true;
+    }
+
+    /**
+     * メニューの値を TERMINATOR_CHARS のキーにする。
+     *
+     * メニューは acceptReporters なので、ブロックをはめ込めば何でも渡ってくる。
+     * 知らない値は改行として扱う。既定と同じにしておけば、間違えても
+     * 「行が読めない」ではなく「行として読まれる」で済む。
+     * @param {*} value - ブロックの引数
+     * @returns {string} TERMINATOR_CHARS のキー
+     */
+  }, {
+    key: "_toTerminatorKind",
+    value: function _toTerminatorKind(value) {
+      var kind = Cast.toString(value).toUpperCase();
+      return TERMINATOR_CHARS[kind] ? kind : 'NEWLINE';
     }
   }], [{
     key: "formatMessage",

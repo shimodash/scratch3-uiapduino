@@ -4,10 +4,15 @@
 # 受け取った人が手で設定し直す必要がなくなる。
 #
 # fqbn の各項目は Arduino IDE の Tools メニューに対応する:
-#   pnum=V14      Board Version : V1.4
-#   usb=kbdweb    USB           : Keyboard+Mouse+WebHID
-#   opt=oslto     Optimize      : Smallest (-Os) with LTO
-#   pwm=default   PWM           : TIM2 Default (pin 2 / PC0)
+#   pnum=V14        Board Version   : V1.4
+#   usb=kbdweb      USB             : Keyboard+Mouse+WebHID
+#   opt=oslto       Optimize        : Smallest (-Os) with LTO
+#   pwm=default     PWM             : TIM2 Default (pin 2 / PC0)
+#   xserial=none    U(S)ART support : None (use UIAPSerial)
+#
+# xserial は既定値だが明示してある。HardwareSerial にすると、Serial を一度も
+# 呼ばなくても Flash が約 4748 バイト増えて 16KB に収まらない。
+# シリアル通信は同梱の UIAPSerial.h / .cpp で行う。
 #
 # usb は kbdweb でなければならない。WebHID Only ではキーボードとマウスの
 # インタフェースが無くなり、そのブロックが動かない。
@@ -18,7 +23,7 @@
 profiles:
   uiapduino:
     notes: UIAPduino (HID ProMicro CH32V003) / Keyboard+Mouse+WebHID
-    fqbn: UIAP_HID:ch32v:CH32V003:pnum=V14,usb=kbdweb,opt=oslto,pwm=default
+    fqbn: UIAP_HID:ch32v:CH32V003:pnum=V14,usb=kbdweb,opt=oslto,pwm=default,xserial=none
     platforms:
       - platform: UIAP_HID:ch32v (1.2.9)
         platform_index_url: https://raw.githubusercontent.com/tarosay/board_manager_files/main/package_uiap_hid_index.json

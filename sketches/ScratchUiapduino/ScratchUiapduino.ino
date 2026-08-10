@@ -7,7 +7,12 @@
  *   Tools → Board Version : V1.4
  *   Tools → USB           : Keyboard+Mouse+WebHID
  *   Tools → PWM           : TIM2 Default (pin 2 / PC0)
+ *   Tools → U(S)ART       : None (use UIAPSerial)   ← 既定のまま
  *   Tools → Optimize      : Smallest (-Os) with LTO
+ *
+ * U(S)ART を HardwareSerial にしてはいけない。標準の `Serial` は一度も呼ばなくても
+ * Flash を約 4748 バイト消費する (boards.txt のコメント)。16KB には入らない。
+ * シリアル通信は同梱の UIAPSerial (USART1 の軽量ラッパー) で行う。
  *
  * USB は Keyboard+Mouse+WebHID でなければならない。
  * UIAPduino は HID なのでキーボードとマウスそのものになれる。これが他にない機能で、
@@ -59,6 +64,7 @@
 #include <PWMmin.h>
 #include <Keyboard.h>
 #include <Mouse.h>
+#include "UIAPSerial.h"
 
 // Tools → PWM が TIM2 Default になっていなければコンパイルエラーにする
 PWMMIN_REQUIRE_DEFAULT();
@@ -72,6 +78,16 @@ PWMMIN_REQUIRE_DEFAULT();
 
 // 準備完了通知（Hid.h の Ready プロトコル）。hid-console.html でも観測できる。
 #define READY_MARKER 0x53
+
+// シリアル受信の通知。コマンドの応答ではなく、デバイスから勝手に送る。
+//
+// 「割り込み」を Scratch まで届けるための経路。区切り文字の判定はここではしない。
+// 「読むものがある」とだけ伝え、何行あるか・どこで切るかは Scratch 側が決める。
+// デバイスに区切り文字を教えると、ブロックのメニューを増やすたびに焼き直しになる。
+//
+// 送るのはコマンドを処理していない間だけ。応答の途中に割り込ませると、
+// レポートが上書きされて応答が消える (rsp() のコメントを参照)。
+#define SERIAL_MARKER 0x54
 
 // ── プロトコルのバージョン ──────────────────────────────────────────────────
 //
@@ -104,7 +120,10 @@ PWMMIN_REQUIRE_DEFAULT();
 //       大文字小文字を反転させる (バージョン 4 は大文字が黙って消えていた)
 //   6 : サーボと距離計を追加。ANALOG_WRITE と SERVO が周波数を伴うようになった
 //       ([3..4] に Hz。それまで ANALOG_WRITE は [1]=pin [2]=duty の 3 バイトだった)
-#define PROTOCOL_VERSION 6
+//   7 : シリアル通信を追加。SERIAL_BEGIN / WRITE / READ と受信通知 (0x54)。
+//       begin 後は D15 / D16 (= A5 / A6) が TX / RX になるので弾くようになった
+//       (6 は v0.2.1 として公開済みなので据え置けない)
+#define PROTOCOL_VERSION 7
 
 // このスケッチがどの版かを表す番号。PING の応答の上位バイトで返す。
 //
@@ -136,6 +155,16 @@ PWMMIN_REQUIRE_DEFAULT();
 #define CMD_ANALOG_READ   0x25
 #define CMD_SERVO         0x26
 #define CMD_DISTANCE      0x27
+
+// シリアル通信 (0x28-0x2A)。
+//
+// デバイスは「文字列」も「行」も知らない。運ぶのはバイト列だけで、
+// CSV の組み立ても区切り文字の判定も Scratch 側が持つ。サーボの角度と同じ理由
+// (ブロックの書式を変えても基板を焼き直さずに済む)。
+#define CMD_SERIAL_BEGIN  0x28
+#define CMD_SERIAL_WRITE  0x29
+#define CMD_SERIAL_READ   0x2A
+
 #define CMD_PANIC         0x2F
 
 // キーボード (0x30 台)。
@@ -196,6 +225,18 @@ PWMMIN_REQUIRE_DEFAULT();
 #define ADC_USB_DP 4
 #define ADC_USB_DM 7
 
+// ── シリアルが使うピン ──────────────────────────────────────────────────────
+//
+// USART1 の TX / RX は CH32V003 では動かせない。D15 = PD5、D16 = PD6 で、
+// アナログ番号でいうと A5 / A6 と同じ足。
+//
+// ⚠ 弾くのは begin した後だけ。シリアルを使わない人からこの 4 つを
+//   取り上げる理由がない。
+#define PIN_UART_TX 15
+#define PIN_UART_RX 16
+#define ADC_UART_TX 5
+#define ADC_UART_RX 6
+
 /**
  * 何か押したまま、コマンドが来ないまま過ぎた時間 (ms)。
  *
@@ -222,6 +263,23 @@ static bool keyHeld = false;
  * 実現するために見る。keyHeld と違って、どのキーかを区別する必要がある。
  */
 static bool shiftHeld = false;
+
+/**
+ * シリアルを begin 済みか。
+ *
+ * 立つと TX / RX の 4 つ (D15 / D16 / A5 / A6) を弾くようになる。
+ * 一度立てたら降ろす手段は無い。閉じるブロックを置いていないため。
+ */
+static bool serialOpen = false;
+
+/**
+ * 受信の通知をまだ送っていないか。
+ *
+ * 受信があるたびに送ると、1 バイトごとにレポートが飛んで応答を潰しかねない。
+ * 「読むものがある」と一度伝えたら、Scratch が読みに来るまで黙る。
+ * 読みに来た時点で、まだ残っていれば再び知らせる (doSerial を参照)。
+ */
+static bool notifyArmed = false;
 
 /**
  * 応答を 1 レポート送る。uiapruby が生成するファームの rsp() と同じ。
@@ -256,15 +314,37 @@ static void rsp_value(uint16_t v, uint8_t len) {
   rsp(RSP_END, 0, 0);
 }
 
+/**
+ * バイト列を DATA の繰り返しで返して END で終端する。
+ *
+ * 1 レポートに載るのは 5 バイトなので、長さに応じて何通にも分かれる。
+ * 1 通ごとに rsp() が 12ms 待つため、30 バイトで約 85ms かかる。
+ * これがシリアル読み出しの速さの上限になっている (毎秒 330 バイト程度)。
+ *
+ * len が 0 でも DATA を 1 通は送る。DATA が 1 通も無い END を、Scratch 側は
+ * 「ペイロードが消えた」とみなしてエラーにするため (uiapduinoProcessor.js)。
+ */
+static void rsp_bytes(const uint8_t *d, uint8_t len) {
+  uint8_t i = 0;
+  do {
+    uint8_t n = (uint8_t)(len - i) > 5 ? 5 : (uint8_t)(len - i);
+    rsp(RSP_DATA, &d[i], n);
+    i = (uint8_t)(i + n);
+  } while (i < len);
+  rsp(RSP_END, 0, 0);
+}
+
 /** デジタルピンとして使ってよいか */
 static bool digitalPinOk(uint8_t pin) {
   if (pin >= NUM_DIGITAL_PINS) return false;
+  if (serialOpen && (pin == PIN_UART_TX || pin == PIN_UART_RX)) return false;
   return pin != PIN_USB_DP && pin != PIN_USB_DM && pin != PIN_RESET;
 }
 
 /** アナログ入力チャンネルとして使ってよいか（0-7 の A 番号） */
 static bool analogChannelOk(uint8_t ch) {
   if (ch >= NUM_ANALOG_INPUTS) return false;
+  if (serialOpen && (ch == ADC_UART_TX || ch == ADC_UART_RX)) return false;
   return ch != ADC_USB_DP && ch != ADC_USB_DM;
 }
 
@@ -374,6 +454,92 @@ static uint16_t measureEchoUs(uint8_t trig, uint8_t echo) {
   uint32_t us = (uint32_t)(SysTick->CNT - t0) / SYSTICK_PER_US;
   // 16bit に収まらない値は Scratch へ渡せない。測れなかったものとして扱う。
   return us > 0xFFFF ? 0 : (uint16_t)us;
+}
+
+// ── シリアル通信 ────────────────────────────────────────────────────────────
+//
+// ⚠ このスケッチは「行」も「CSV」も知らない。
+//
+//   運ぶのはバイト列だけ。区切り文字がどれか、何行たまっているか、数値をどう
+//   並べるかは Scratch 側が決める。サーボが角度を知らないのと同じ理由で、
+//   ブロックの書式を変えても基板を焼き直さずに済む。
+
+/** 1 コマンドで運べるバイト数。Feature Report 32 バイトのうち [2..31] */
+#define SERIAL_CHUNK 30
+
+/**
+ * シリアル通信のコマンドを実行する。
+ * @param cmd コマンド ID (0x28-0x2A)
+ * @param buf 受信した Feature Report 32 バイト
+ */
+static void doSerial(uint8_t cmd, const uint8_t *buf) {
+  if (cmd == CMD_SERIAL_BEGIN) {
+    // [1..4] = ボーレート (uint32LE)
+    uint32_t baud = (uint32_t)buf[1] | ((uint32_t)buf[2] << 8) |
+                    ((uint32_t)buf[3] << 16) | ((uint32_t)buf[4] << 24);
+    // 0 を弾く。BRR = 48000000 / baud なのでゼロ除算になる。
+    if (baud == 0) {
+      rsp_err();
+      return;
+    }
+    uart.begin(baud);
+    serialOpen = true;
+    notifyArmed = true;
+    rsp_ok();
+    return;
+  }
+
+  // begin していなければ、ピンはまだ普通の GPIO として使われているかもしれない。
+  // 黙って USART を動かすと、そのピンに繋がっているものを壊す。
+  if (!serialOpen) {
+    rsp_err();
+    return;
+  }
+
+  if (cmd == CMD_SERIAL_WRITE) {
+    // [1] = バイト数  [2..31] = 中身
+    //
+    // 0 終端にしていないのは、数値をそのまま送る使い方を塞がないため。
+    // 文字列とは限らないので、途中に 0 があっても切らない。
+    uint8_t n = buf[1];
+    if (n > SERIAL_CHUNK) n = SERIAL_CHUNK;
+    for (uint8_t i = 0; i < n; i++) uart.write(buf[2 + i]);
+    rsp_ok();
+    return;
+  }
+
+  // CMD_SERIAL_READ : [1] = 最大バイト数
+  //
+  // 先頭に実際に読めた数を付けて返す。0 バイトのときも「0 が 1 バイト」を返す
+  // ことになるので、rsp_bytes() の「DATA が 1 通も無い END」を踏まない。
+  uint8_t max = buf[1];
+  if (max > SERIAL_CHUNK - 1) max = SERIAL_CHUNK - 1;
+  uint8_t out[SERIAL_CHUNK];
+  uint8_t n = 0;
+  while (n < max && uart.available()) {
+    out[1 + n] = uart.read();
+    n++;
+  }
+  out[0] = n;
+  // 読み切れずに残っていれば、次の空き時間にまた知らせる。
+  // これが Scratch 側の「残りが無くなるまで読む」を回す仕掛けになっている。
+  notifyArmed = true;
+  rsp_bytes(out, (uint8_t)(n + 1));
+}
+
+/**
+ * 受信があることを Scratch へ知らせる。応答ではないので、勝手に送る。
+ *
+ * コマンドを処理していない間だけ呼ぶこと。応答の途中に割り込ませると、
+ * ホストが回収する前に上書きして応答を消す (rsp() のコメントを参照)。
+ */
+static void serialNotify() {
+  if (!serialOpen || !notifyArmed || !uart.available()) return;
+  uint8_t d[8] = { SERIAL_MARKER, 0, 0, 0, 0, 0, 0, 0 };
+  for (uint32_t t = 0; WebHID.busy() && t < 800000UL; t++) {}
+  WebHID.send(d, 8);
+  notifyArmed = false;
+  delay(12);
 }
 
 /** マウスのボタンをすべて離す */
@@ -687,6 +853,10 @@ void loop() {
   // キーボードのタイプは 1 コマンドで最大 30 文字送られてくるので 32 バイト受ける
   uint8_t buf[32];
   if (WebHID.recv(buf, sizeof(buf)) == 0) {
+    // コマンドの合間だけ、シリアルの受信を知らせる。
+    // 応答を送っている最中に割り込ませないよう、ここ以外では呼ばない。
+    serialNotify();
+
     // 押しっぱなしのまま Scratch が黙り込んだら、こちらの判断で離す。
     // 何も押されていないときは数えないので、普段のループは今までどおり空回りする。
     if (anythingHeld()) {
@@ -729,6 +899,12 @@ void loop() {
 
   if (cmd >= CMD_KEY_TEXT) {
     doKeyboard(cmd, buf);
+    return;
+  }
+
+  // シリアルはピン番号を取らないので、下のピン検査より前に分岐する
+  if (cmd >= CMD_SERIAL_BEGIN && cmd <= CMD_SERIAL_READ) {
+    doSerial(cmd, buf);
     return;
   }
 
