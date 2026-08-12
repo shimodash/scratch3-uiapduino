@@ -66,6 +66,44 @@
 #include <Mouse.h>
 #include "UIAPSerial.h"
 
+// NeoPixel が持てる LED の数。1 個 3 バイトなので、64 個で RAM 192 バイト。
+// 1m 60 個のテープまで入る。
+//
+// ⚠ #include より前に定義すること。定義しないと #error で止まる。
+//   ライブラリが意図的にそうしてある。既定値を置くと、少なすぎて黙って切れるか、
+//   多すぎて RAM を無駄にするか、どちらも実機に載せるまで気づけない。
+//
+// ⚠ これは "入れ物の大きさ" であって、送る数ではない。
+//   実際に何個出すかは NEO_BEGIN で Scratch から渡される。デバイスはその数を
+//   覚えるだけで、値を持っているのは Scratch 側なので、LED を増やしても
+//   基板を焼き直さずに済む。
+//
+//   当初は「常に 64 個分を出す」形だった。繋がっていない分のビットは
+//   チェーンの末端から出ていって消えるので、多く送っても光り方は変わらない。
+//   やめたのは下の NEOPIXELMIN_ATOMIC のため。12 個なら 0.38ms で済む送出を
+//   64 個 (2.05ms) のまま割り込み禁止にすると、その間 USB が応答できない。
+#define NEOPIXELMIN_MAX_LEDS 64
+
+// show() の間だけ割り込みを止める。
+//
+// ⚠ これが無いと、実機で LED が不規則に光る。
+//
+//   WS2812 は途中で 50µs 以上止まると、そこで 1 フレームが確定したと見なして
+//   次のバイトから別のフレームとして解釈し直す。UIAPduino の USB は
+//   ソフトウェア実装 (rv003usb) で、その割り込みは 50µs を超える。
+//   しかも USB 設定が Keyboard+Mouse+WebHID なので、ホストは 3 つの
+//   インタフェースを常時ポーリングしている。送出中に割り込みが入る確率が高い。
+//
+//   ライブラリの既定は「割り込みを許す」で、SPI で波形を作るのはそのためだが、
+//   それが成り立つのは 1 レジスタ書き込みあたり 2.67µs の余裕に収まる
+//   割り込みだけ。ソフトウェア USB はそこに収まらない。
+//   ライブラリはこの逃げ道を最初から用意している (NeoPixelmin.h の Configuration)。
+//
+//   止めている時間は LED の数で決まる (1 個あたり 32µs)。12 個で 0.38ms。
+//   その間に来た USB のパケットは取りこぼすが、ホストが再送する。
+#define NEOPIXELMIN_ATOMIC
+#include <NeoPixelmin.h>
+
 // Tools → PWM が TIM2 Default になっていなければコンパイルエラーにする
 PWMMIN_REQUIRE_DEFAULT();
 
@@ -123,7 +161,10 @@ PWMMIN_REQUIRE_DEFAULT();
 //   7 : シリアル通信を追加。SERIAL_BEGIN / WRITE / READ と受信通知 (0x54)。
 //       begin 後は D15 / D16 (= A5 / A6) が TX / RX になるので弾くようになった
 //       (6 は v0.2.1 として公開済みなので据え置けない)
-#define PROTOCOL_VERSION 7
+//   8 : NeoPixel を追加。NEO_BEGIN / SET / FILL / SHOW / BRIGHTNESS (0x60-0x64)。
+//       begin 後は D8 (SPI1 MOSI) を弾くようになった
+//       (7 は v0.2.2 として公開済みなので据え置けない)
+#define PROTOCOL_VERSION 8
 
 // このスケッチがどの版かを表す番号。PING の応答の上位バイトで返す。
 //
@@ -194,6 +235,23 @@ PWMMIN_REQUIRE_DEFAULT();
 #define CMD_MOUSE_DBLCLICK    0x47
 #define CMD_MOUSE_DRAG        0x48
 
+// NeoPixel (0x60 台)。
+//
+// デバイスは「虹」も「回転」も知らない。色を決める計算はすべて Scratch 側にあり、
+// ここに来るのは出来上がった RGB だけ。1 コマンドの往復が 12〜15ms あるので、
+// LED を 1 個ずつ送ると 12 連のリングで 180ms かかってアニメーションにならない。
+// Scratch 側が鏡のバッファを持ち、SHOW でまとめて出す形にしてある。
+//
+// ⚠ 0x50 台を避けたのは、デバイス → Scratch のマーカー
+//   (0x50=コンソール / 0x52=応答 / 0x53=READY / 0x54=シリアル受信) と
+//   番号が紛らわしいため。向きが違うので衝突はしないが、
+//   hid-console.html で生バイトを追うときに目で混ざる。
+#define CMD_NEO_BEGIN      0x60
+#define CMD_NEO_SET        0x61
+#define CMD_NEO_FILL       0x62
+#define CMD_NEO_SHOW       0x63
+#define CMD_NEO_BRIGHTNESS 0x64
+
 // ダブルクリックの 2 回の間隔 (ms)。
 // Windows の既定の判定時間は 500ms なので、それより十分に短くする。
 // Scratch から click を 2 回送る形では、応答待ちの往復で 500ms を超えかねない。
@@ -236,6 +294,19 @@ PWMMIN_REQUIRE_DEFAULT();
 #define PIN_UART_RX 16
 #define ADC_UART_TX 5
 #define ADC_UART_RX 6
+
+// ── NeoPixel が使うピン ─────────────────────────────────────────────────────
+//
+// DIN は D8 (PC6) 固定。NeoPixelmin が SPI1 の MOSI で波形を作るので動かせない。
+// SCK (PC5 = D7) / MISO (PC7 = D9) / NSS (PC1 = D3) はライブラリが触らないので、
+// 弾くのはこの 1 本だけでよい。
+//
+// アナログ側の禁止は要らない。PC6 にアナログチャンネルは無い
+// (A0-A7 = PA2 / PA1 / PC4 / PD2 / PD3 / PD5 / PD6 / PD4)。
+// シリアルの D15 / D16 が A5 / A6 でもあったのとは事情が違う。
+//
+// ⚠ 弾くのは begin した後だけ。NeoPixel を使わない人から D8 を取り上げない。
+#define PIN_NEOPIXEL NEOPIXELMIN_PIN
 
 /**
  * 何か押したまま、コマンドが来ないまま過ぎた時間 (ms)。
@@ -280,6 +351,22 @@ static bool serialOpen = false;
  * 読みに来た時点で、まだ残っていれば再び知らせる (doSerial を参照)。
  */
 static bool notifyArmed = false;
+
+/**
+ * NeoPixel のバッファ。入れ物は常に最大数ぶん確保される。
+ *
+ * 出す数は NEO_BEGIN で作り直して決める。個数を持っているのは Scratch 側で、
+ * ここは言われた数を覚えているだけ (NEOPIXELMIN_MAX_LEDS のコメントを参照)。
+ */
+static NeoPixelmin pixels(NEOPIXELMIN_MAX_LEDS);
+
+/**
+ * NeoPixel を begin 済みか。
+ *
+ * 立つと D8 を弾くようになる。serialOpen と同じで、降ろす手段は無い。
+ * SPI1 を一度 NeoPixel に渡したら、リセットするまで返さない。
+ */
+static bool neoOpen = false;
 
 /**
  * 応答を 1 レポート送る。uiapruby が生成するファームの rsp() と同じ。
@@ -338,6 +425,7 @@ static void rsp_bytes(const uint8_t *d, uint8_t len) {
 static bool digitalPinOk(uint8_t pin) {
   if (pin >= NUM_DIGITAL_PINS) return false;
   if (serialOpen && (pin == PIN_UART_TX || pin == PIN_UART_RX)) return false;
+  if (neoOpen && pin == PIN_NEOPIXEL) return false;
   return pin != PIN_USB_DP && pin != PIN_USB_DM && pin != PIN_RESET;
 }
 
@@ -540,6 +628,115 @@ static void serialNotify() {
   WebHID.send(d, 8);
   notifyArmed = false;
   delay(12);
+}
+
+// ── NeoPixel ────────────────────────────────────────────────────────────────
+//
+// ⚠ このスケッチは「虹」も「HSV」も「回転」も知らない。
+//
+//   受け取るのは出来上がった RGB だけ。色の計算は Scratch 側 (JS) にある。
+//   サーボが角度を知らず、シリアルが行を知らないのと同じ理由で、
+//   表現を増やしてもデバイスを焼き直さずに済む。
+
+/**
+ * 1 コマンドで書ける LED の数。
+ *
+ * Feature Report 32 バイトのうち、色に使えるのは [3..31] の 29 バイト。
+ * 3 バイト × 9 = 27 で収まる。
+ */
+#define NEO_SET_MAX 9
+
+/**
+ * NeoPixel のコマンドを実行する。
+ * @param cmd コマンド ID (0x60-0x64)
+ * @param buf 受信した Feature Report 32 バイト
+ */
+static void doNeoPixel(uint8_t cmd, const uint8_t *buf) {
+  if (cmd == CMD_NEO_BEGIN) {
+    // [1] = LED の個数 (1..64)
+    //
+    // 出す数を決めるためだけに受け取る。多い数を出しても光り方は変わらないが、
+    // 割り込みを止めている時間がそのぶん延びる (NEOPIXELMIN_ATOMIC を参照)。
+    uint8_t n = buf[1];
+    if (n == 0 || n > NEOPIXELMIN_MAX_LEDS) {
+      rsp_err();
+      return;
+    }
+    // 入れ物の大きさは変わらないので、作り直しても RAM は増えない。
+    // 明るさは 0 (無変換) に戻るが、Scratch は直後に NEO_BRIGHTNESS を送る。
+    pixels = NeoPixelmin(n);
+    pixels.begin();
+    neoOpen = true;
+    rsp_ok();
+    return;
+  }
+
+  // begin していなければ、D8 はまだ普通の GPIO として使われているかもしれない。
+  // 黙って SPI1 を動かすと、そのピンに繋がっているものを壊す。
+  if (!neoOpen) {
+    rsp_err();
+    return;
+  }
+
+  switch (cmd) {
+    case CMD_NEO_SET: {
+      // [1] = 開始番号 (0 から数える)  [2] = 個数 (1..9)  [3..] = R,G,B × 個数
+      uint8_t first = buf[1];
+      uint8_t n     = buf[2];
+      // 範囲外は黙って詰めずに失敗させる。Scratch 側が個数を持っている以上、
+      // ここへ来る時点で計算が合っていない。
+      if (n == 0 || n > NEO_SET_MAX || (uint16_t)first + n > pixels.numPixels()) {
+        rsp_err();
+        break;
+      }
+      for (uint8_t i = 0; i < n; i++) {
+        const uint8_t *c = &buf[3 + (i * 3)];
+        pixels.setPixelColor((uint16_t)(first + i), c[0], c[1], c[2]);
+      }
+      rsp_ok();
+      break;
+    }
+
+    case CMD_NEO_FILL: {
+      // [1] = 開始番号  [2] = 個数 (0 = 最後まで)  [3..5] = R,G,B
+      //
+      // fill() の引数の並びと同じ。0 が「最後まで」なのもライブラリに合わせた。
+      // Scratch 側が使うのは消灯 (全部 0) のときだけで、
+      // それ以外の塗りつぶしは鏡のバッファを書いて NEO_SET で送ってくる。
+      // ここに残してあるのは、停止時の消灯を 1 往復で済ませるため。
+      uint8_t first = buf[1];
+      if (first >= pixels.numPixels()) {
+        rsp_err();
+        break;
+      }
+      pixels.fill(NeoPixelmin::Color(buf[3], buf[4], buf[5]), first, buf[2]);
+      rsp_ok();
+      break;
+    }
+
+    case CMD_NEO_SHOW:
+      // 300us のリセット待ちと、LED 1 個あたり 32us の送出。12 個で約 0.7ms。
+      // 応答が返るのはその後なので、SHOW だけ他のコマンドより少し遅い。
+      //
+      // この間は割り込みが止まる (NEOPIXELMIN_ATOMIC)。
+      pixels.show();
+      rsp_ok();
+      break;
+
+    case CMD_NEO_BRIGHTNESS:
+      // [1] = 0..255
+      //
+      // このライブラリの明るさは非破壊的で、バッファの値は変えずに
+      // 送り出すときだけ掛ける。だから明るさを変えた後も、
+      // SHOW を送れば色を入れ直さずに反映される。
+      pixels.setBrightness(buf[1]);
+      rsp_ok();
+      break;
+
+    default:
+      rsp_err();
+      break;
+  }
 }
 
 /** マウスのボタンをすべて離す */
@@ -889,6 +1086,16 @@ void loop() {
   if (cmd == CMD_PANIC) {
     releaseAllInput();
     rsp_ok();
+    return;
+  }
+
+  // NeoPixel はピン番号を取らないので、下のピン検査より前に分岐する。
+  //
+  // ⚠ マウスの判定より前に置くこと。0x60 は 0x40 以上なので、後ろに置くと
+  //   if (cmd >= CMD_MOUSE_MOVE) に吸い込まれる。doMouse() は知らない番号に
+  //   rsp_err() を返すだけなので、症状は「ブロックが無言で何もしない」になる。
+  if (cmd >= CMD_NEO_BEGIN && cmd <= CMD_NEO_BRIGHTNESS) {
+    doNeoPixel(cmd, buf);
     return;
   }
 

@@ -380,6 +380,49 @@ const TERMINATOR_CHARS = {
 const SERIAL_PINS = {digital: [15, 16], analog: [5, 6]};
 
 /**
+ * NeoPixel が持てる LED の最大数。デバイス側 NEOPIXELMIN_MAX_LEDS と同じ値。
+ *
+ * デバイスは常にこの数ぶんの波形を出す。繋がっていない分のビットは
+ * チェーンの末端から出ていって消えるので、多く送っても害がない。
+ * おかげで LED の本当の個数はこちら側だけが持てばよく、
+ * 増やしても基板を焼き直さずに済む。
+ * @type {number}
+ */
+const NEOPIXEL_MAX_LEDS = 64;
+
+/**
+ * NEO_SET 1 コマンドで書ける LED の数。
+ *
+ * Feature Report 32 バイトのうち色に使えるのは [3..31] の 29 バイト。
+ * 3 バイト × 9 = 27 が収まる上限。デバイス側 NEO_SET_MAX と同じ値。
+ * @type {number}
+ */
+const NEOPIXEL_SET_CHUNK = 9;
+
+/**
+ * NeoPixel の DIN。begin した後は弾く。
+ *
+ * NeoPixelmin が SPI1 の MOSI で波形を作るので D8 (PC6) から動かせない。
+ * SCK (D7) / MISO (D9) / NSS (D3) はライブラリが触らないので弾かない。
+ *
+ * アナログ側は要らない。PC6 にアナログチャンネルは無い
+ * (A0-A7 = PA2 / PA1 / PC4 / PD2 / PD3 / PD5 / PD6 / PD4)。
+ * シリアルの D15 / D16 が A5 / A6 でもあったのとは事情が違う。
+ * @type {number}
+ */
+const NEOPIXEL_PIN = 8;
+
+/**
+ * 「始める」ブロックの既定値。
+ *
+ * 12 個は市販のリングでいちばん見かける数。明るさ 50% にしてあるのは、
+ * 全部白にしたときの電流を抑えるため。64 個を 100% で白にすると 3.8A になり、
+ * USB からは到底取れない。控えめな既定値から始めてもらう。
+ * @type {object}
+ */
+const NEOPIXEL_DEFAULT = {count: 12, brightness: 50};
+
+/**
  * スケッチの入手先。説明ブロックとコンソールの両方がここを案内する。
  *
  * リポジトリ内のパスを案内してはいけない。Xcratch の利用者は URL を貼っただけで、
@@ -727,6 +770,80 @@ const message = {
         ja: 'リストがありません',
         'ja-Hira': 'リストが ありません',
         en: 'no list'
+    },
+    // NeoPixel。
+    //
+    // 番号は 1 から数える。Scratch のリストと同じにしてある。
+    // デバイス側は 0 から数えるが、その変換はブロックの実装が持つ。
+    neoBegin: {
+        ja: 'NeoPixel を [COUNT] 個 明るさ [BRIGHTNESS] % で始める',
+        'ja-Hira': 'NeoPixel を [COUNT] こ あかるさ [BRIGHTNESS] % で はじめる',
+        en: 'start NeoPixel with [COUNT] LEDs at [BRIGHTNESS] % brightness'
+    },
+    neoBrightness: {
+        ja: 'NeoPixel の明るさを [BRIGHTNESS] % にする',
+        'ja-Hira': 'NeoPixel の あかるさを [BRIGHTNESS] % にする',
+        en: 'set NeoPixel brightness to [BRIGHTNESS] %'
+    },
+    neoSetColor: {
+        ja: 'NeoPixel の [INDEX] 番を [COLOR] にする',
+        'ja-Hira': 'NeoPixel の [INDEX] ばんを [COLOR] にする',
+        en: 'set NeoPixel [INDEX] to [COLOR]'
+    },
+    neoSetRgb: {
+        ja: 'NeoPixel の [INDEX] 番を 赤 [R] 緑 [G] 青 [B] にする',
+        'ja-Hira': 'NeoPixel の [INDEX] ばんを あか [R] みどり [G] あお [B] にする',
+        en: 'set NeoPixel [INDEX] to red [R] green [G] blue [B]'
+    },
+    neoSetHsv: {
+        ja: 'NeoPixel の [INDEX] 番を 色 [H] 鮮やかさ [S] 明るさ [V] にする',
+        'ja-Hira': 'NeoPixel の [INDEX] ばんを いろ [H] あざやかさ [S] あかるさ [V] にする',
+        en: 'set NeoPixel [INDEX] to hue [H] saturation [S] brightness [V]'
+    },
+    neoSetRange: {
+        ja: 'NeoPixel の [INDEX] 番から [COUNT] 個を [COLOR] にする',
+        'ja-Hira': 'NeoPixel の [INDEX] ばんから [COUNT] こを [COLOR] にする',
+        en: 'set [COUNT] NeoPixels from [INDEX] to [COLOR]'
+    },
+    neoFill: {
+        ja: 'NeoPixel を全部 [COLOR] にする',
+        'ja-Hira': 'NeoPixel を ぜんぶ [COLOR] にする',
+        en: 'set all NeoPixels to [COLOR]'
+    },
+    neoClear: {
+        ja: 'NeoPixel を消す',
+        'ja-Hira': 'NeoPixel を けす',
+        en: 'turn off all NeoPixels'
+    },
+    neoShift: {
+        ja: 'NeoPixel を [STEP] つ ずらす',
+        'ja-Hira': 'NeoPixel を [STEP] つ ずらす',
+        en: 'shift NeoPixels by [STEP]'
+    },
+    neoDim: {
+        ja: 'NeoPixel を [PERCENT] % 暗くする',
+        'ja-Hira': 'NeoPixel を [PERCENT] % くらくする',
+        en: 'dim NeoPixels by [PERCENT] %'
+    },
+    neoRainbow: {
+        ja: 'NeoPixel に虹を出す ずらし [OFFSET]',
+        'ja-Hira': 'NeoPixel に にじを だす ずらし [OFFSET]',
+        en: 'show a rainbow on NeoPixels offset [OFFSET]'
+    },
+    neoShow: {
+        ja: 'NeoPixel を表示する',
+        'ja-Hira': 'NeoPixel を ひょうじする',
+        en: 'show NeoPixels'
+    },
+    neoBatch: {
+        ja: 'NeoPixel をまとめて表示する',
+        'ja-Hira': 'NeoPixel を まとめて ひょうじする',
+        en: 'show NeoPixels together'
+    },
+    neoGetColor: {
+        ja: 'NeoPixel の [INDEX] 番の色',
+        'ja-Hira': 'NeoPixel の [INDEX] ばんの いろ',
+        en: 'color of NeoPixel [INDEX]'
     }
 };
 
@@ -912,6 +1029,58 @@ class Scratch3Uiapduino {
          */
         this._serialHatTimer = null;
 
+        /**
+         * NeoPixel の鏡のバッファ。明るさを掛ける前の RGB を 3 バイト × 64。
+         *
+         * デバイス側と同じ RGB の順で持つ。GRB への並べ替えは NeoPixelmin が
+         * 内部で行うので、こちらは並べ替えない。
+         * @type {Uint8Array}
+         */
+        this._neoBuf = new Uint8Array(NEOPIXEL_MAX_LEDS * 3);
+
+        /**
+         * 「始める」で渡された LED の個数。送る範囲を決めるのはこの値。
+         *
+         * デバイスには教えない。あちらは常に 64 個分の波形を出す。
+         * @type {number}
+         */
+        this._neoCount = 0;
+
+        /**
+         * NeoPixel を始めたか。「[ ] 個 明るさ [ ] % で始める」で立つ。
+         *
+         * ⚠ Xcratch ではページを読み込み直すたびに false に戻る。
+         *   拡張機能が作り直されるため。シリアルと同じ落とし穴。
+         * @type {boolean}
+         */
+        this._neoOpen = false;
+
+        /**
+         * 前回の送信以降に書き換えられた範囲 (両端を含む)。空なら from > to。
+         *
+         * 自動表示が既定 ON なので、色のブロック 1 個でも送信が走る。
+         * 毎回 64 個分 (SET × 8 + SHOW = 9 往復 ≒ 135ms) 送っていては
+         * ブロック 1 個が体感で引っかかる。変わったところだけ送れば、
+         * 1 個の書き換えは SET 1 回 + SHOW 1 回の 2 往復 (≒ 25〜30ms) で済む。
+         * @type {number}
+         */
+        this._neoDirtyFrom = 0;
+        /** @type {number} */
+        this._neoDirtyTo = -1;
+
+        /**
+         * 「まとめて表示する〔 〕」の入れ子の深さ。0 より大きい間は自動表示を止める。
+         *
+         * 修飾キーの _modifierCounts と同じ考え方だが、こちらは種類が
+         * 1 つしかないので Map ではなく数値 1 つでよい。
+         *
+         * ⚠ 停止したときに 0 へ戻すこと。囲みの途中で止められると 2 回目の
+         *   呼び出しが来ないので 1 のまま残り、次に緑の旗を押しても自動表示が
+         *   効かない。「急に光らなくなった」に見える。
+         * @type {number}
+         */
+        this._neoBatchDepth = 0;
+
         // USB が抜かれたら processor から呼ばれる。
         this.processor.onDisconnected = () => this._handleDisconnectError();
 
@@ -951,9 +1120,36 @@ class Scratch3Uiapduino {
         // 深さを戻しておかないと、次に押す処理が飛ばされる。
         this._dragDepth = 0;
         this._modifierCounts.clear();
+        // 「まとめて表示する〔 〕」も同じ。戻さないと自動表示が効かないまま残る。
+        this._neoBatchDepth = 0;
         if (!this.processor.isConnected()) return Promise.resolve();
         this.processor.resetQueue();
-        return this.processor.request(CMD.PANIC).catch(() => {});
+        return this.processor.request(CMD.PANIC)
+            .catch(() => {})
+            .then(() => this._neoTurnOff());
+    }
+
+    /**
+     * NeoPixel を消灯する。停止ボタンから呼ばれる。
+     *
+     * PANIC には混ぜない。あちらはキーとマウスを離すためのもので、
+     * NeoPixel が繋がっていない作品でも必ず飛ぶ。用途の違うものを
+     * 1 つのコマンドにまとめると、どちらの都合でも変えられなくなる。
+     *
+     * 鏡のバッファも一緒に消す。消えた表示と手元の値がずれていると、
+     * 次に「表示する」を置いたときに前の絵が戻ってくる。
+     *
+     * @returns {Promise<void>} 消し終わったら resolve。失敗しても reject しない
+     */
+    _neoTurnOff () {
+        if (!this._neoOpen || !this.processor.isConnected()) return Promise.resolve();
+        this._neoBuf.fill(0);
+        this._neoDirtyFrom = 0;
+        this._neoDirtyTo = -1;
+        // FILL は 1 往復で全部を黒にできる。SET で送ると 8 往復かかる。
+        return this.processor.request(CMD.NEO_FILL, [0, 0, 0, 0, 0])
+            .then(() => this.processor.request(CMD.NEO_SHOW))
+            .catch(() => {});
     }
 
     /**
@@ -1377,6 +1573,204 @@ class Scratch3Uiapduino {
                             type: ArgumentType.STRING,
                             defaultValue: 'NEWLINE',
                             menu: 'TERMINATOR'
+                        }
+                    }
+                },
+                '---',
+                // NeoPixel (WS2812B)。
+                //
+                // 色を決めるブロックは USB を触らない。書き換えるのは手元の
+                // 鏡のバッファ (_neoBuf) だけで、実際に送るのは「表示する」のとき。
+                //
+                // 1 コマンドの往復に 12〜15ms かかるので、LED を 1 個ずつ送ると
+                // 12 連のリングで 180ms になりアニメーションにならない。
+                // 虹・回転・減衰・HSV の計算はすべてこちら側 (JS) にある。
+                //
+                // ⚠ 自動表示は既定 ON。色のブロックは自分で「表示する」まで行う。
+                //   置いただけで光らないと、利用者はどこが悪いのか分からない。
+                //   速さが要るところだけ「まとめて表示する〔 〕」で囲む。
+                {
+                    opcode: 'neoBegin',
+                    text: this._getText('neoBegin'),
+                    blockType: BlockType.COMMAND,
+                    arguments: {
+                        COUNT: {
+                            type: ArgumentType.NUMBER,
+                            defaultValue: NEOPIXEL_DEFAULT.count
+                        },
+                        BRIGHTNESS: {
+                            type: ArgumentType.NUMBER,
+                            defaultValue: NEOPIXEL_DEFAULT.brightness
+                        }
+                    }
+                },
+                {
+                    opcode: 'neoBrightness',
+                    text: this._getText('neoBrightness'),
+                    blockType: BlockType.COMMAND,
+                    arguments: {
+                        BRIGHTNESS: {
+                            type: ArgumentType.NUMBER,
+                            defaultValue: NEOPIXEL_DEFAULT.brightness
+                        }
+                    }
+                },
+                {
+                    opcode: 'neoSetColor',
+                    text: this._getText('neoSetColor'),
+                    blockType: BlockType.COMMAND,
+                    arguments: {
+                        INDEX: {
+                            type: ArgumentType.NUMBER,
+                            defaultValue: 1
+                        },
+                        COLOR: {
+                            type: ArgumentType.COLOR
+                        }
+                    }
+                },
+                {
+                    opcode: 'neoSetRgb',
+                    text: this._getText('neoSetRgb'),
+                    blockType: BlockType.COMMAND,
+                    arguments: {
+                        INDEX: {
+                            type: ArgumentType.NUMBER,
+                            defaultValue: 1
+                        },
+                        R: {
+                            type: ArgumentType.NUMBER,
+                            defaultValue: 255
+                        },
+                        G: {
+                            type: ArgumentType.NUMBER,
+                            defaultValue: 0
+                        },
+                        B: {
+                            type: ArgumentType.NUMBER,
+                            defaultValue: 0
+                        }
+                    }
+                },
+                {
+                    // 色相・鮮やかさ・明るさは 0〜100。Scratch のペンに合わせてある。
+                    // 0〜255 や 0〜360 を混ぜると、同じ「色」という言葉で
+                    // 別の目盛りを使うことになる。
+                    opcode: 'neoSetHsv',
+                    text: this._getText('neoSetHsv'),
+                    blockType: BlockType.COMMAND,
+                    arguments: {
+                        INDEX: {
+                            type: ArgumentType.NUMBER,
+                            defaultValue: 1
+                        },
+                        H: {
+                            type: ArgumentType.NUMBER,
+                            defaultValue: 0
+                        },
+                        S: {
+                            type: ArgumentType.NUMBER,
+                            defaultValue: 100
+                        },
+                        V: {
+                            type: ArgumentType.NUMBER,
+                            defaultValue: 100
+                        }
+                    }
+                },
+                {
+                    opcode: 'neoSetRange',
+                    text: this._getText('neoSetRange'),
+                    blockType: BlockType.COMMAND,
+                    arguments: {
+                        INDEX: {
+                            type: ArgumentType.NUMBER,
+                            defaultValue: 1
+                        },
+                        COUNT: {
+                            type: ArgumentType.NUMBER,
+                            defaultValue: 3
+                        },
+                        COLOR: {
+                            type: ArgumentType.COLOR
+                        }
+                    }
+                },
+                {
+                    opcode: 'neoFill',
+                    text: this._getText('neoFill'),
+                    blockType: BlockType.COMMAND,
+                    arguments: {
+                        COLOR: {
+                            type: ArgumentType.COLOR
+                        }
+                    }
+                },
+                {
+                    opcode: 'neoClear',
+                    text: this._getText('neoClear'),
+                    blockType: BlockType.COMMAND
+                },
+                {
+                    opcode: 'neoShift',
+                    text: this._getText('neoShift'),
+                    blockType: BlockType.COMMAND,
+                    arguments: {
+                        STEP: {
+                            type: ArgumentType.NUMBER,
+                            defaultValue: 1
+                        }
+                    }
+                },
+                {
+                    // 明るさ (neoBrightness) とは別物。あちらはデバイス側で
+                    // 送り出すときに掛かる非破壊的な倍率で、バッファは変わらない。
+                    // こちらはバッファそのものを書き換えるので、繰り返すと消えていく。
+                    // 残像やフェードアウトを作るのはこちら。
+                    opcode: 'neoDim',
+                    text: this._getText('neoDim'),
+                    blockType: BlockType.COMMAND,
+                    arguments: {
+                        PERCENT: {
+                            type: ArgumentType.NUMBER,
+                            defaultValue: 20
+                        }
+                    }
+                },
+                {
+                    opcode: 'neoRainbow',
+                    text: this._getText('neoRainbow'),
+                    blockType: BlockType.COMMAND,
+                    arguments: {
+                        OFFSET: {
+                            type: ArgumentType.NUMBER,
+                            defaultValue: 0
+                        }
+                    }
+                },
+                {
+                    opcode: 'neoShow',
+                    text: this._getText('neoShow'),
+                    blockType: BlockType.COMMAND
+                },
+                {
+                    // マウスの「ドラッグしながら〔 〕」と同じ BlockType.LOOP。
+                    // 「中身が終わったらもう一度呼ばれる」性質を使う。
+                    //
+                    //   1 回目 : 自動表示を止めて startBranch。中身が動く
+                    //   2 回目 : 自動表示を戻し、溜まった分を 1 回で送る
+                    opcode: 'neoBatch',
+                    text: this._getText('neoBatch'),
+                    blockType: BlockType.LOOP
+                },
+                {
+                    opcode: 'neoGetColor',
+                    text: this._getText('neoGetColor'),
+                    blockType: BlockType.REPORTER,
+                    arguments: {
+                        INDEX: {
+                            type: ArgumentType.NUMBER,
+                            defaultValue: 1
                         }
                     }
                 },
@@ -2630,6 +3024,14 @@ class Scratch3Uiapduino {
      * @returns {boolean} 使えるなら true
      */
     _pinAvailable (pin, analog) {
+        // NeoPixel はアナログ側を取らない。D8 = PC6 にアナログチャンネルが無いため。
+        if (this._neoOpen && !analog && pin === NEOPIXEL_PIN) {
+            console.warn(
+                `[uiapduino] D${NEOPIXEL_PIN} is used by NeoPixel (DIN). ` +
+                `NeoPixel を始めている間、D${NEOPIXEL_PIN} は使えません。`
+            );
+            return false;
+        }
         if (!this._serialOpen) return true;
         const taken = analog ? SERIAL_PINS.analog : SERIAL_PINS.digital;
         if (!taken.includes(pin)) return true;
@@ -2948,6 +3350,379 @@ class Scratch3Uiapduino {
     _toTerminatorKind (value) {
         const kind = Cast.toString(value).toUpperCase();
         return TERMINATOR_CHARS[kind] ? kind : 'NEWLINE';
+    }
+
+    // ── NeoPixel ────────────────────────────────────────────────────────────
+    //
+    // 色を決めるブロックは USB を触らない。書き換えるのは _neoBuf だけで、
+    // 実際に送るのは _neoFlush()。虹も回転も減衰も HSV も、計算はここにある。
+    // デバイスは出来上がった RGB を受け取るだけ。
+
+    /**
+     * 始めているか確かめる。まだなら警告を出す。
+     *
+     * ⚠ Xcratch ではページを読み込み直すたびに false に戻る。忘れると
+     *   ブロックが無言で何もしないので、コンソールには必ず出す。
+     *
+     * @returns {boolean} 使えるなら true
+     */
+    _neoReady () {
+        if (this._neoOpen) return true;
+        console.warn(
+            '[uiapduino] NeoPixel is not started; ' +
+            'place the "start NeoPixel" block first. ' +
+            '「NeoPixel を [ ] 個 明るさ [ ] % で始める」を先に実行してください。'
+        );
+        return false;
+    }
+
+    /**
+     * ブロックの「n 番」を配列の添字にする。
+     *
+     * 番号は 1 から数える (Scratch のリストと同じ)。範囲外は -1 を返す。
+     * 呼び出し側は何もせずに返すこと。Scratch のリストと同じ振る舞いにしてある。
+     *
+     * @param {*} value - ブロックの引数
+     * @returns {number} 0 から数えた添字。範囲外なら -1
+     */
+    _neoIndex (value) {
+        const index = Math.round(Cast.toNumber(value)) - 1;
+        if (index < 0 || index >= this._neoCount) {
+            console.warn(
+                `[uiapduino] NeoPixel index ${Cast.toString(value)} is out of range ` +
+                `(1..${this._neoCount})`
+            );
+            return -1;
+        }
+        return index;
+    }
+
+    /**
+     * 書き換えた範囲を覚えておく。送るのはここで覚えた分だけ。
+     * @param {number} from - 変えた先頭 (0 から数える)
+     * @param {number} to - 変えた末尾 (両端を含む)
+     * @returns {void}
+     */
+    _neoTouch (from, to) {
+        if (this._neoDirtyFrom > this._neoDirtyTo) {
+            this._neoDirtyFrom = from;
+            this._neoDirtyTo = to;
+            return;
+        }
+        if (from < this._neoDirtyFrom) this._neoDirtyFrom = from;
+        if (to > this._neoDirtyTo) this._neoDirtyTo = to;
+    }
+
+    /**
+     * 1 個ぶんの色を鏡のバッファへ書く。範囲の検査は呼び出し側で済ませておく。
+     * @param {number} index - 0 から数えた番号
+     * @param {Array<number>} rgb - [R, G, B] それぞれ 0-255
+     * @returns {void}
+     */
+    _neoWrite (index, rgb) {
+        const at = index * 3;
+        this._neoBuf[at] = rgb[0];
+        this._neoBuf[at + 1] = rgb[1];
+        this._neoBuf[at + 2] = rgb[2];
+    }
+
+    /**
+     * 自動表示。囲みの中なら何もしない。
+     *
+     * 色のブロックはすべてこれを返す。囲みの外では送信の Promise になるので、
+     * Scratch はデバイスが表示し終わるまで次のブロックへ進まない。
+     *
+     * @returns {Promise<void>} 送り終わったら resolve
+     */
+    _neoAutoShow () {
+        if (this._neoBatchDepth > 0) return Promise.resolve();
+        return this._neoFlush();
+    }
+
+    /**
+     * 溜まった変更をデバイスへ送って表示する。
+     *
+     * 変わったところが無くても SHOW は送る。明るさだけ変えた場合や、
+     * 利用者が明示的に「表示する」を置いた場合があるため。
+     *
+     * @returns {Promise<void>} 送り終わったら resolve。失敗しても reject しない
+     */
+    _neoFlush () {
+        if (!this._neoOpen || !this.processor.isConnected()) return Promise.resolve();
+
+        const from = this._neoDirtyFrom;
+        const to = Math.min(this._neoDirtyTo, this._neoCount - 1);
+        this._neoDirtyFrom = 0;
+        this._neoDirtyTo = -1;
+
+        let chain = Promise.resolve();
+        for (let i = from; i <= to; i += NEOPIXEL_SET_CHUNK) {
+            const n = Math.min(NEOPIXEL_SET_CHUNK, (to - i) + 1);
+            // [開始番号, 個数, R, G, B, R, G, B, ...]
+            const params = [i, n];
+            for (let k = 0; k < n * 3; k++) {
+                params.push(this._neoBuf[((i * 3) + k)]);
+            }
+            chain = chain.then(() => this.processor.request(CMD.NEO_SET, params));
+        }
+        return chain
+            .then(() => this.processor.request(CMD.NEO_SHOW))
+            .catch(() => {});
+    }
+
+    /**
+     * 色ピッカーの '#rrggbb' を [R, G, B] にする。
+     *
+     * ArgumentType.COLOR は '#rrggbb' を渡してくるが、メニューと同じで
+     * ブロックをはめ込めば何でも来る。読めなければ黒にする。
+     *
+     * @param {*} value - ブロックの引数
+     * @returns {Array<number>} [R, G, B]
+     */
+    _neoToRgb (value) {
+        const text = Cast.toString(value).trim();
+        const hex = (/^#?([0-9a-f]{6})$/i).exec(text);
+        if (hex) {
+            const n = parseInt(hex[1], 16);
+            return [(n >> 16) & 0xFF, (n >> 8) & 0xFF, n & 0xFF];
+        }
+        // Cast.toRgbColorList は数値も '#rgb' も受ける。scratch-vm のペンと同じ経路。
+        const list = Cast.toRgbColorList(value);
+        return list ? [list[0], list[1], list[2]] : [0, 0, 0];
+    }
+
+    /**
+     * 0-100 の HSV を [R, G, B] にする。
+     *
+     * 目盛りを 0-100 に揃えてあるのは Scratch のペンに合わせたため。
+     * 色相は一周するので剰余を取る。鮮やかさと明るさは丸める。
+     *
+     * @param {number} h - 色相 0-100
+     * @param {number} s - 鮮やかさ 0-100
+     * @param {number} v - 明るさ 0-100
+     * @returns {Array<number>} [R, G, B]
+     */
+    _neoHsvToRgb (h, s, v) {
+        const hue = (((h % 100) + 100) % 100) / 100;
+        const sat = Math.min(100, Math.max(0, s)) / 100;
+        const val = Math.min(100, Math.max(0, v)) / 100;
+
+        const i = Math.floor(hue * 6);
+        const f = (hue * 6) - i;
+        const p = val * (1 - sat);
+        const q = val * (1 - (f * sat));
+        const t = val * (1 - ((1 - f) * sat));
+
+        let rgb;
+        switch (i % 6) {
+        case 0: rgb = [val, t, p]; break;
+        case 1: rgb = [q, val, p]; break;
+        case 2: rgb = [p, val, t]; break;
+        case 3: rgb = [p, q, val]; break;
+        case 4: rgb = [t, p, val]; break;
+        default: rgb = [val, p, q]; break;
+        }
+        return rgb.map(c => Math.round(c * 255));
+    }
+
+    /**
+     * 0-255 に丸める。
+     * @param {*} value - ブロックの引数
+     * @returns {number} 0-255
+     */
+    _neoByte (value) {
+        return Math.min(255, Math.max(0, Math.round(Cast.toNumber(value))));
+    }
+
+    neoBegin (args) {
+        const count = Math.min(
+            NEOPIXEL_MAX_LEDS,
+            Math.max(1, Math.round(Cast.toNumber(args.COUNT)) || 1)
+        );
+        const percent = Math.min(100, Math.max(0, Math.round(Cast.toNumber(args.BRIGHTNESS))));
+
+        this._neoCount = count;
+        this._neoBuf.fill(0);
+        this._neoDirtyFrom = 0;
+        this._neoDirtyTo = -1;
+        this._neoBatchDepth = 0;
+
+        // 個数を渡す。デバイスはこの数ぶんだけ波形を出す。
+        // 多く出しても光り方は変わらないが、その間ずっと割り込みが止まるので
+        // USB が応答できなくなる (uiapduinoProcessor の NEO_BEGIN を参照)。
+        return this.processor.request(CMD.NEO_BEGIN, [count])
+            .then(() => {
+                this._neoOpen = true;
+                return this.processor.request(
+                    CMD.NEO_BRIGHTNESS, [Math.round((percent * 255) / 100)]
+                );
+            })
+            // 始めた時点で消えていることを保証する。前の作品の絵が残っていると、
+            // 「始める」を置いた瞬間に知らない色が出る。
+            .then(() => this.processor.request(CMD.NEO_FILL, [0, 0, 0, 0, 0]))
+            .then(() => this.processor.request(CMD.NEO_SHOW))
+            .catch(() => {});
+    }
+
+    neoBrightness (args) {
+        if (!this._neoReady()) return Promise.resolve();
+        const percent = Math.min(100, Math.max(0, Math.round(Cast.toNumber(args.BRIGHTNESS))));
+        return this.processor
+            .request(CMD.NEO_BRIGHTNESS, [Math.round((percent * 255) / 100)])
+            .catch(() => {})
+            // 明るさは非破壊的なので、色を送り直さなくても SHOW だけで反映される。
+            .then(() => this._neoAutoShow());
+    }
+
+    neoSetColor (args) {
+        if (!this._neoReady()) return Promise.resolve();
+        const index = this._neoIndex(args.INDEX);
+        if (index < 0) return Promise.resolve();
+        this._neoWrite(index, this._neoToRgb(args.COLOR));
+        this._neoTouch(index, index);
+        return this._neoAutoShow();
+    }
+
+    neoSetRgb (args) {
+        if (!this._neoReady()) return Promise.resolve();
+        const index = this._neoIndex(args.INDEX);
+        if (index < 0) return Promise.resolve();
+        this._neoWrite(index, [
+            this._neoByte(args.R), this._neoByte(args.G), this._neoByte(args.B)
+        ]);
+        this._neoTouch(index, index);
+        return this._neoAutoShow();
+    }
+
+    neoSetHsv (args) {
+        if (!this._neoReady()) return Promise.resolve();
+        const index = this._neoIndex(args.INDEX);
+        if (index < 0) return Promise.resolve();
+        this._neoWrite(index, this._neoHsvToRgb(
+            Cast.toNumber(args.H), Cast.toNumber(args.S), Cast.toNumber(args.V)
+        ));
+        this._neoTouch(index, index);
+        return this._neoAutoShow();
+    }
+
+    neoSetRange (args) {
+        if (!this._neoReady()) return Promise.resolve();
+        const index = this._neoIndex(args.INDEX);
+        if (index < 0) return Promise.resolve();
+        // 個数が多すぎても失敗させない。最後の 1 個まで塗って止める。
+        // 「10 番から 5 個」を 12 個のリングに置くのは自然な書き方で、
+        // それを弾くと利用者は端の手前で数を数えることになる。
+        const count = Math.max(0, Math.round(Cast.toNumber(args.COUNT)));
+        const last = Math.min(this._neoCount - 1, (index + count) - 1);
+        if (last < index) return Promise.resolve();
+
+        const rgb = this._neoToRgb(args.COLOR);
+        for (let i = index; i <= last; i++) this._neoWrite(i, rgb);
+        this._neoTouch(index, last);
+        return this._neoAutoShow();
+    }
+
+    neoFill (args) {
+        if (!this._neoReady()) return Promise.resolve();
+        const rgb = this._neoToRgb(args.COLOR);
+        for (let i = 0; i < this._neoCount; i++) this._neoWrite(i, rgb);
+        this._neoTouch(0, this._neoCount - 1);
+        return this._neoAutoShow();
+    }
+
+    neoClear () {
+        if (!this._neoReady()) return Promise.resolve();
+        for (let i = 0; i < this._neoCount; i++) this._neoWrite(i, [0, 0, 0]);
+        this._neoTouch(0, this._neoCount - 1);
+        return this._neoAutoShow();
+    }
+
+    neoShift (args) {
+        if (!this._neoReady()) return Promise.resolve();
+        const n = this._neoCount;
+        if (n <= 1) return Promise.resolve();
+
+        // 個数で剰余を取る。n を超えるずらしも、負のずらしも一周させる。
+        const step = ((Math.round(Cast.toNumber(args.STEP)) % n) + n) % n;
+        if (step === 0) return Promise.resolve();
+
+        const moved = this._neoBuf.slice(0, n * 3);
+        for (let i = 0; i < n; i++) {
+            const src = ((i - step) + n) % n;
+            this._neoWrite(i, [moved[src * 3], moved[(src * 3) + 1], moved[(src * 3) + 2]]);
+        }
+        this._neoTouch(0, n - 1);
+        return this._neoAutoShow();
+    }
+
+    neoDim (args) {
+        if (!this._neoReady()) return Promise.resolve();
+        const percent = Math.min(100, Math.max(0, Math.round(Cast.toNumber(args.PERCENT))));
+        const scale = (100 - percent) / 100;
+        for (let i = 0; i < this._neoCount * 3; i++) {
+            this._neoBuf[i] = Math.round(this._neoBuf[i] * scale);
+        }
+        this._neoTouch(0, this._neoCount - 1);
+        return this._neoAutoShow();
+    }
+
+    neoRainbow (args) {
+        if (!this._neoReady()) return Promise.resolve();
+        const n = this._neoCount;
+        if (n === 0) return Promise.resolve();
+
+        // 個数で 1 周。ずらしも 0-100 で数えるので、色相と同じ目盛りになる。
+        const offset = Cast.toNumber(args.OFFSET);
+        for (let i = 0; i < n; i++) {
+            this._neoWrite(i, this._neoHsvToRgb(((i * 100) / n) + offset, 100, 100));
+        }
+        this._neoTouch(0, n - 1);
+        return this._neoAutoShow();
+    }
+
+    neoShow () {
+        if (!this._neoReady()) return Promise.resolve();
+        // 囲みの中でも送る。明示的に置かれた「表示する」を無視しない。
+        return this._neoFlush();
+    }
+
+    /**
+     * 「まとめて表示する〔 〕」。
+     *
+     * マウスの「ドラッグしながら〔 〕」と同じ作り。1 回目で自動表示を止めて
+     * 中身を動かし、中身が終わって 2 回目に呼ばれたときにまとめて送る。
+     *
+     * startBranch() は同期的に呼ばなければならないので、ここでは待てない。
+     * 待たなくても順序は崩れない。中身のブロックは USB を触らないため。
+     *
+     * @param {object} args - ブロックの引数 (使わない)
+     * @param {object} util - ブロックの実行文脈
+     * @returns {?Promise<void>} 2 回目の呼び出しでだけ送信の Promise を返す
+     */
+    neoBatch (args, util) {
+        if (util.stackFrame.uiapduinoBatching) {
+            // 2 回目。中身が終わったので深さを戻す。
+            util.stackFrame.uiapduinoBatching = false;
+            this._neoBatchDepth = Math.max(0, this._neoBatchDepth - 1);
+            if (this._neoBatchDepth > 0) return null; // 外側の囲みがまだ続いている
+            return this._neoFlush();
+        }
+
+        // 1 回目。自動表示を止めてから中身へ入る。
+        util.stackFrame.uiapduinoBatching = true;
+        this._neoBatchDepth += 1;
+        util.startBranch(1, true);
+        return null;
+    }
+
+    neoGetColor (args) {
+        const index = this._neoIndex(args.INDEX);
+        if (index < 0) return '#000000';
+        // USB は触らない。鏡のバッファがそのまま答えになる。
+        const at = index * 3;
+        return `#${[
+            this._neoBuf[at], this._neoBuf[at + 1], this._neoBuf[at + 2]
+        ].map(c => c.toString(16).padStart(2, '0')).join('')}`;
     }
 }
 
