@@ -445,16 +445,11 @@ const NEOPIXEL_PIN = 8;
  */
 const NEOPIXEL_DEFAULT = {count: 12, brightness: 50};
 
-/**
- * スケッチの入手先。説明ブロックとコンソールの両方がここを案内する。
- *
- * リポジトリ内のパスを案内してはいけない。Xcratch の利用者は URL を貼っただけで、
- * リポジトリを見ていない。スケッチはリリースに sketch.zip として同梱してあり、
- * 「アプリとスケッチは必ず同じリリースの組み合わせで使う」のが決めごとなので、
- * 常に最新リリースを指す。
- * @type {string}
- */
-const SKETCH_RELEASE_URL = 'https://github.com/tarosay/scratch3-uiapduino/releases/latest';
+// スケッチの入手先 (SKETCH_RELEASE_URL) は v0.2.4 で消した。
+//
+// 焼くものは拡張機能が持っており、直し方は「下のブロックを押す」だけになった。
+// リリースにもスケッチは同梱していないので、案内すれば置いていないものを
+// 探しに行かせることになる。
 
 /**
  * 書き込みモードの基板 (rv003usb ブートローダ) を選ぶための WebHID フィルタ。
@@ -524,10 +519,13 @@ const message = {
         'ja-Hira': '⚠ きばんの スケッチが あわないので つながりません',
         en: '⚠ Cannot connect: the sketch on the board does not match'
     },
+    // v0.2.4 から、直し方は「下のブロックを押す」だけ。
+    // それ以前は「リリースからスケッチを取ってきて Arduino IDE で焼く」を案内していたが、
+    // 焼くものは拡張機能が持っているので、もうどこにも取りに行かせない。
     sketchOutdatedHow: {
-        ja: '新しいスケッチの(ScratchUiapduino.ino)を書き込んでください。',
-        'ja-Hira': 'あたらしい スケッチの(ScratchUiapduino.ino)を かきこんでください。',
-        en: 'Flash the new sketch (ScratchUiapduino.ino).'
+        ja: '下の「スケッチを書き込む」を押してください。',
+        'ja-Hira': 'したの「スケッチを かきこむ」を おしてください。',
+        en: 'Press "flash the sketch" below.'
     },
     // 焼くべきスケッチがどれかを見分けるための番号。
     // 焼き直したのに直らないとき、本当に新しいものを焼いたのかがこれで分かる。
@@ -2265,8 +2263,7 @@ class Scratch3Uiapduino {
                 // いるかではない。基板側の番号はコンソールに出ている。
                 variant ?
                     `${this._getText('sketchVariantLabel')}: ${SKETCH_VARIANT}` :
-                    `${this._getText('sketchProtocolLabel')}: ${PROTOCOL_VERSION}`,
-                SKETCH_RELEASE_URL
+                    `${this._getText('sketchProtocolLabel')}: ${PROTOCOL_VERSION}`
             ].map((text, i) => ({
                 opcode: `sketchProblem${i}`,
                 blockType: BlockType.COMMAND,
@@ -2275,7 +2272,10 @@ class Scratch3Uiapduino {
 
             // 説明だけで終わらせない。ここが「詰まった人が必ず見る場所」なので、
             // その場で直せるように書き込みブロックを足す。
-            // URL の行は残す。ブロックで書けなかった人の逃げ道が要る。
+            //
+            // ⚠ リリースの URL は出さない。v0.2.4 でスケッチの入手先を案内する
+            //   必要がなくなった (焼くものは拡張機能が持っている)。案内すると、
+            //   置いていないファイルを探しに行かせることになる。
             //
             // 引数もメニューも持たないブロックなので、menus を空にしても出せる。
             info.blocks.push('---', ...this._flashBlocks());

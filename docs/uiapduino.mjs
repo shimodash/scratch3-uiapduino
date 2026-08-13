@@ -3743,12 +3743,11 @@ var UiapduinoProcessor = /*#__PURE__*/function () {
               _context3["catch"](0);
               raw = HANDSHAKE.NO_RESPONSE;
             case 3:
-              // ⚠ リポジトリ内のパス (sketches/ScratchUiapduino) を案内してはいけない。
-              //   Xcratch の利用者は URL を貼っただけで、リポジトリを見ていない。
-              //   スケッチはリリースに sketch.zip として同梱してあり、
-              //   「アプリとスケッチは必ず同じリリースの組み合わせで使う」のが決めごとなので、
-              //   常に最新リリースを指す。
-              reflash = '最新のスケッチ (sketch.zip) を書き込んでください: ' + 'https://github.com/tarosay/scratch3-uiapduino/releases/latest';
+              // ⚠ スケッチの入手先を案内してはいけない。焼くものは拡張機能が持っている。
+              //   v0.2.3 までは「リリースの sketch.zip を取ってきて Arduino IDE で焼く」を
+              //   案内していたが、v0.2.4 でその zip をリリースから外した。
+              //   案内すれば、置いていないものを探しに行かせることになる。
+              reflash = 'パレットの「スケッチを書き込む」ブロックで書き込めます。';
               if (!(raw === HANDSHAKE.NO_RESPONSE)) {
                 _context3.next = 4;
                 break;
@@ -5644,16 +5643,11 @@ var NEOPIXEL_DEFAULT = {
   brightness: 50
 };
 
-/**
- * スケッチの入手先。説明ブロックとコンソールの両方がここを案内する。
- *
- * リポジトリ内のパスを案内してはいけない。Xcratch の利用者は URL を貼っただけで、
- * リポジトリを見ていない。スケッチはリリースに sketch.zip として同梱してあり、
- * 「アプリとスケッチは必ず同じリリースの組み合わせで使う」のが決めごとなので、
- * 常に最新リリースを指す。
- * @type {string}
- */
-var SKETCH_RELEASE_URL = 'https://github.com/tarosay/scratch3-uiapduino/releases/latest';
+// スケッチの入手先 (SKETCH_RELEASE_URL) は v0.2.4 で消した。
+//
+// 焼くものは拡張機能が持っており、直し方は「下のブロックを押す」だけになった。
+// リリースにもスケッチは同梱していないので、案内すれば置いていないものを
+// 探しに行かせることになる。
 
 /**
  * 書き込みモードの基板 (rv003usb ブートローダ) を選ぶための WebHID フィルタ。
@@ -5723,10 +5717,13 @@ var message = {
     'ja-Hira': '⚠ きばんの スケッチが あわないので つながりません',
     en: '⚠ Cannot connect: the sketch on the board does not match'
   },
+  // v0.2.4 から、直し方は「下のブロックを押す」だけ。
+  // それ以前は「リリースからスケッチを取ってきて Arduino IDE で焼く」を案内していたが、
+  // 焼くものは拡張機能が持っているので、もうどこにも取りに行かせない。
   sketchOutdatedHow: {
-    ja: '新しいスケッチの(ScratchUiapduino.ino)を書き込んでください。',
-    'ja-Hira': 'あたらしい スケッチの(ScratchUiapduino.ino)を かきこんでください。',
-    en: 'Flash the new sketch (ScratchUiapduino.ino).'
+    ja: '下の「スケッチを書き込む」を押してください。',
+    'ja-Hira': 'したの「スケッチを かきこむ」を おしてください。',
+    en: 'Press "flash the sketch" below.'
   },
   // 焼くべきスケッチがどれかを見分けるための番号。
   // 焼き直したのに直らないとき、本当に新しいものを焼いたのかがこれで分かる。
@@ -7420,7 +7417,7 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
         // 焼くべきものを見分けるための番号。基板側の番号は出さない。
         // 直すのに要るのは「何を焼けばよいか」であって、今何が焼かれて
         // いるかではない。基板側の番号はコンソールに出ている。
-        variant ? "".concat(this._getText('sketchVariantLabel'), ": ").concat(SKETCH_VARIANT) : "".concat(this._getText('sketchProtocolLabel'), ": ").concat(PROTOCOL_VERSION), SKETCH_RELEASE_URL].map(function (text, i) {
+        variant ? "".concat(this._getText('sketchVariantLabel'), ": ").concat(SKETCH_VARIANT) : "".concat(this._getText('sketchProtocolLabel'), ": ").concat(PROTOCOL_VERSION)].map(function (text, i) {
           return {
             opcode: "sketchProblem".concat(i),
             blockType: BlockType.COMMAND,
@@ -7430,7 +7427,10 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
 
         // 説明だけで終わらせない。ここが「詰まった人が必ず見る場所」なので、
         // その場で直せるように書き込みブロックを足す。
-        // URL の行は残す。ブロックで書けなかった人の逃げ道が要る。
+        //
+        // ⚠ リリースの URL は出さない。v0.2.4 でスケッチの入手先を案内する
+        //   必要がなくなった (焼くものは拡張機能が持っている)。案内すると、
+        //   置いていないファイルを探しに行かせることになる。
         //
         // 引数もメニューも持たないブロックなので、menus を空にしても出せる。
         (_info$blocks = info.blocks).push.apply(_info$blocks, ['---'].concat(_toConsumableArray(this._flashBlocks())));

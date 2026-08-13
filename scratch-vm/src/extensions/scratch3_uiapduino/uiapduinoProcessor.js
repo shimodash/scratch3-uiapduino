@@ -671,14 +671,11 @@ class UiapduinoProcessor {
             raw = HANDSHAKE.NO_RESPONSE;
         }
 
-        // ⚠ リポジトリ内のパス (sketches/ScratchUiapduino) を案内してはいけない。
-        //   Xcratch の利用者は URL を貼っただけで、リポジトリを見ていない。
-        //   スケッチはリリースに sketch.zip として同梱してあり、
-        //   「アプリとスケッチは必ず同じリリースの組み合わせで使う」のが決めごとなので、
-        //   常に最新リリースを指す。
-        const reflash =
-            '最新のスケッチ (sketch.zip) を書き込んでください: ' +
-            'https://github.com/tarosay/scratch3-uiapduino/releases/latest';
+        // ⚠ スケッチの入手先を案内してはいけない。焼くものは拡張機能が持っている。
+        //   v0.2.3 までは「リリースの sketch.zip を取ってきて Arduino IDE で焼く」を
+        //   案内していたが、v0.2.4 でその zip をリリースから外した。
+        //   案内すれば、置いていないものを探しに行かせることになる。
+        const reflash = 'パレットの「スケッチを書き込む」ブロックで書き込めます。';
         if (raw === HANDSHAKE.NO_RESPONSE) {
             console.error(
                 '[uiapduino] デバイスが応答しません。' +
