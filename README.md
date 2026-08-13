@@ -34,6 +34,7 @@ scratch-vm / scratch-gui / scratch-desktop を clone した上に、このリポ
 | サーボのブロック | バージョン 6 で追加。**SG-90 で実機確認済み**（可動域を実測して duty 上限を 29 に決めた） |
 | 距離計のブロック | バージョン 6 で追加。**HC-SR04 で実機確認済み** |
 | NeoPixel のブロック | バージョン 8 で追加。**WS2812B 12 連リングで実機確認済み**（2026-08-13） |
+| 書き込みのブロック | v0.2.4 で追加。**Xcratch 版で実機確認済み**（2026-08-14）。プロトコル 5 の基板を、パレットのブロックだけで焼き直せた |
 | WebHID 通信層 | **実機で確認済み**（接続・切断・再接続・入出力） |
 | 接続フロー | ステータスボタンと接続モーダルに対応。**実機確認済み** |
 | GUI の日本語 | 拡張カードと接続モーダルを `ja` / `ja-Hira` で表示。実機確認済み |
@@ -115,13 +116,17 @@ scratch-vm / scratch-gui / scratch-desktop を clone した上に、このリポ
 |---|---|
 | `scratch-vm/src/extensions/scratch3_uiapduino/index.js` | ブロック定義。通信方式を一切知らない |
 | `scratch-vm/src/extensions/scratch3_uiapduino/uiapduinoProcessor.js` | WebHID 通信 + コマンドキュー |
+| `scratch-vm/src/extensions/scratch3_uiapduino/rv003usbFlasher.js` | 基板への書き込み処理。**第三者のコード (MIT)。** 下記 License を参照 |
+| `scratch-vm/src/extensions/scratch3_uiapduino/sketchBin.js` | 同梱スケッチ (base64)。**自動生成。手で書かない** |
 | `scratch-gui/src/lib/libraries/extensions/uiapduino/uiapduino.png` | 拡張機能ライブラリのカード画像 (600x372) |
 | `scratch-gui/src/lib/libraries/extensions/uiapduino/uiapduino-small.png` | 小アイコン (80x80) |
+| `scratch-gui/src/lib/libraries/extensions/uiapduino/SketchWrite.png` | 書き込みブロックのアイコン (80x80) |
 | `scratch-gui/src/lib/libraries/extensions/uiapduino/uiapduino-illustration.png` | 接続モーダル用の画像 (266x165) |
 | `scratch-gui/src/lib/libraries/extensions/uiapduino/usb-hid-white.svg` | 接続バッジの USB マーク (20x20) |
 | `scratch-gui/src/lib/libraries/extensions/uiapduino/messages.js` | GUI 側の日本語訳（`ja` / `ja-Hira`） |
 | `sketches/ScratchUiapduino/ScratchUiapduino.ino` | デバイス側スケッチ |
 | `sketches/ScratchUiapduino/sketch.yaml` | ボードと Tools メニューの設定 |
+| `sketches/ScratchUiapduino.ino.bin` | 上をビルドしたもの。`sketchBin.js` の元 |
 | `build-scratch3-uiapduino.ps1` | ビルドスクリプト |
 | `xcratch/` | Xcratch 版のビルド環境（詳細は [`xcratch/README.md`](xcratch/README.md)） |
 | `docs/uiapduino.mjs` | **配っている Xcratch 版のモジュール**。GitHub Pages が `/docs` を公開している |
@@ -135,7 +140,9 @@ scratch-vm / scratch-gui / scratch-desktop を clone した上に、このリポ
 `uiapduinoProcessor.js` だけを直せば済みます。
 
 `ScratchUiapduino.ino` はデバイス側で動くもので、**Scratch のビルドには含まれません。**
-Arduino IDE から別途 UIAPduino に書き込みます。
+ただし、これをビルドした `.bin` は `sketchBin.js` として**拡張機能に同梱**しており、
+書き込みブロックがそれを基板へ流し込みます。Arduino IDE から書き込むこともできます
+（[書き込み方法](#書き込み方法scratch-のブロックから)）。
 
 ### ✏️ 上流ファイルへのパッチ（Scratch Foundation / MIT のコードを改変）
 
@@ -582,6 +589,7 @@ size_t KeyboardClass::press(uint8_t key) {
 | v0.2.1 | 2026-08-09 | 6 |
 | v0.2.2 | 2026-08-11 | 7 |
 | v0.2.3 | 2026-08-13 | 8 |
+| v0.2.4 | 2026-08-14 | 8 ← **据え置き。焼き直し不要** |
 
 2 と 4 はコミットにすら残っていません。手元の検証のたびに機械的に上げたためで、
 公開番号を無駄に消費していました（2026-08-08 に指摘を受けて方針を変更）。
@@ -975,9 +983,39 @@ sketches/ScratchUiapduino/
   sketch.yaml            … ボードと Tools メニューの設定
 ```
 
-### 書き込み方法
+### 書き込み方法：Scratch のブロックから
 
-詳しくは Core 側の
+**v0.2.4 から、Arduino IDE は要りません。** パレットの末尾にある
+`スケッチ (プロトコル 8) を書き込む` を押すだけです。焼かれるのは
+**拡張機能に同梱してあるスケッチ**なので、拡張機能とスケッチの版は必ず一致します。
+
+1. **基板を書き込みモードにする。** 基板のボタンを押しながら USB ケーブルを接続し、
+   すぐにボタンを離します
+2. **パレットの `スケッチ (プロトコル 8) を書き込む` をクリックする。**
+   デバイス選択のダイアログに `32V003` が出るので、それを選びます
+3. 進み具合は `書き込みの ようす` に出ます。焼き終わると基板は自動で繋ぎ直ります
+
+**プロトコルが合わないと言われたときも、その画面から直せます。**
+パレットが説明に差し替わっているとき、その説明の下に同じ 2 つのブロックが並びます。
+
+**⚠ ブロックを直接クリックしてください。** 緑の旗から走らせると
+「ブロックをクリックしてください」で止まります。ブラウザが
+`requestDevice()` にクリック直後であることを要求するためで、事故防止も兼ねています。
+
+**⚠ Chrome か Edge が要ります。** WebHID を使うためです。
+
+**⚠ 「UIAPduino への接続が失われました」が残ることがあります。**
+繋がっている基板を抜いて書き込みモードに入れると出るもので、**焼いて繋ぎ直しても
+このアラートだけが取り残されます。** × で閉じてください。
+
+閉じられるのは × と 再接続 だけで、繋がり直したときに消す処理が `scratch-gui` に
+ありません（`vm-listener-hoc.jsx` が出し、`reducers/alerts.js` に該当の分岐が無い）。
+拡張機能からアラートを閉じる方法も無いので、こちらでは直せません。
+**「合いません」と言われた基板を焼き直す場合は、繋がっていないので出ません。**
+
+### 書き込み方法：Arduino IDE から
+
+スケッチを自分で書き換えたいときは、こちらです。詳しくは Core 側の
 [README](https://github.com/tarosay/arduino_core_ch32#書き込み方法) を見てください。
 
 **1. Arduino IDE にボードを入れる（初回だけ）**
@@ -1036,6 +1074,29 @@ PWM の設定を間違えると `PWMMIN_REQUIRE_DEFAULT()` がコンパイル時
 1.2.10 から上げたのは、**`NeoPixelmin` が 1.2.10 に入っていない**ためです
 （初出は 1.2.11、`SysTick` 版は 1.2.12）。1.2.10 のままでは NeoPixel のブロックが
 ビルドできません。
+
+### 同梱スケッチ（`.bin`）の更新手順
+
+**`.ino` を直したら、拡張機能に埋め込んである `.bin` も作り直してください。**
+忘れると、書き込みブロックが古いスケッチを焼き続けます。
+
+```
+sketches/ScratchUiapduino.ino.bin          … 埋め込みの元（追跡している）
+scratch-vm/src/extensions/scratch3_uiapduino/sketchBin.js  … 生成物。手で書かない
+```
+
+1. arduino-cli でビルドし、**`.bin` だけ**を `sketches/ScratchUiapduino.ino.bin` へ
+   上書きコピーする（`.elf` / `.hex` / `.map` は要りません）
+2. `cd xcratch; npm run embed-bin`
+3. `npm run build`
+4. `.bin` と `sketchBin.js` と `docs/uiapduino.mjs` を**一緒にコミットする**
+
+`embed-bin` は `.bin` の大きさ（16,384 バイト以下）を確かめ、`.ino` から
+`PROTOCOL_VERSION` を読んで生成物に書き込みます。**その番号が拡張機能側の定数と
+食い違っていると、書き込みブロックは焼かずに止まります。** 2 を忘れたまま配っても、
+古いものが焼かれることはありません。
+
+出力は決定的なので、走らせ直しても中身が変わらなければ差分は出ません。
 
 **固定先は実機確認に使った版と一致させること。** この数字は 2 回取り残されています。
 1.2.8 と書いてあった時期も、1.2.9 と書いてあった時期も、その版でビルドも実機確認も
@@ -1180,6 +1241,16 @@ scratch-vm は「入力を 1 つも持たないレポーター」にだけ
 `uiapduinoProcessor` 側もコマンドを直列化するため、実際は「応答が返ったら次を送る」ペースになります。
 
 A4 / A7 は USB ピンなのでブロックを用意していません。A5 / A6 は `ピン [PIN] の値` で読めます。
+
+**⚠ 「ファイル → 新規」でチェックが外れません。** 表示は消えるのにチェックだけが残り、
+外して入れ直すと出ます。**この拡張機能に限った話ではなく、直せる場所もありません。**
+
+チェックを外す処理（`scratch-gui` の `containers/blocks.jsx` の `handleMonitorsUpdate`）は
+「今あるモニター」だけを回しますが、「新規」で `runtime.dispose()` がその一覧を空にするため、
+繰り返しが 1 回も回りません。スプライト固有のもの（`x座標` など）が外れて見えるのは、
+ブロックの ID にスプライトの ID が入っていて（`<block id="${targetId}_xposition">`）、
+新規で別のブロックになるからで、外れたわけではありません。ID が固定の `タイマー`
+（`id="timer"`）は同じ症状になります。**拡張機能のレポーターは必ずこうなります。**
 
 ### 🔋 アナログ値の 1023 は「基板の電源電圧」です
 
@@ -1657,6 +1728,60 @@ WS2812B は 1 個を白で全開にすると 60mA ほど流れます。**64 個�
 下げるか、LED 側に別の電源を用意してください。そのときの繋ぎ方は次節と同じで、
 **GND だけを共通にし、外部電源を Vcc に繋がないでください。**
 
+### 🔥 スケッチを書き込むブロック（v0.2.4〜）
+
+```
+スケッチ (プロトコル 8) を書き込む     … 押すと焼く。成功したら true
+書き込みの ようす                     … 「書き込み中 45%」など
+```
+
+**Arduino IDE を持っていなくても基板を焼けます。** 使い方は
+[書き込み方法](#書き込み方法scratch-のブロックから)を見てください。
+
+パレットの末尾と、**スケッチが噛み合わないときの説明の中**の 2 か所に出ます。
+後者が本来の置き場所です。「合いません、書き込み直してください」と言われた画面から、
+そのまま直せます。
+
+#### 焼くのは「拡張機能に同梱してあるスケッチ」です
+
+`.bin` は `sketchBin.js` として拡張機能の中にあります。**だから拡張機能とスケッチの版が
+ずれません。** 拡張機能が新しくなれば、焼かれるスケッチも必ずその版のものになります。
+
+ブロックの名前に出ている番号（`プロトコル 8`）は、**実際に焼かれるものの番号**です。
+拡張機能側の定数ではありません。2 つが食い違っていたら、焼かずに止まります。
+
+#### ⚠ ブロックのクリックからしか焼けません
+
+緑の旗から走らせると「ブロックをクリックしてください」で止まります。
+`navigator.hid.requestDevice()` がクリック直後であることを要求するためです。
+**事故防止としても都合がよいので、そのままにしてあります。**
+
+デスクトップ版は `getDevices()` で拾えるため、この制限がありません。代わりに
+`main/index.js` が `1209:B803`（書き込みモードの基板）を許可している必要があります。
+
+#### 書き込み中に見えるもの
+
+| 状態 | 出る文字 |
+|---|---|
+| 押す前 | まだ書き込んでいません |
+| 基板を探している | 基板をさがしています |
+| 書き込み中 | 書き込み中 45% |
+| 照合中 | たしかめ中 45% |
+| 完了 | 書き込めました |
+| 書き込みモードでない | 基板が書き込みモードになっていません |
+| 緑の旗から走らせた | ブロックをクリックしてください |
+
+**最初の 1 セクタだけ「たしかめ中 0%」が出るのは正常です。** 書き込み処理は
+「差分が見つかったか」で表示を切り替えるので、まっさらな基板でも 1 個目までは
+照合中の扱いになります。2 周目は全部「たしかめ中」で終わります。
+
+#### 書き込みの後
+
+基板は再起動して `1209:D004` として現れ直します。**それを見つけたら自動で繋ぎ直します**
+（0.5 秒おきに最大 10 秒）。繋がると、説明に差し替わっていたパレットもブロックへ戻ります。
+
+10 秒で現れなければ何もしません。ステータスボタンから繋いでください。
+
 ### ⚡ モーターの電源は分ける（Vcc に繋がない）
 
 サーボや DC モータードライバを**強いトルクで動かしたいときは、電源ラインを分けられます。**
@@ -1911,11 +2036,35 @@ npm v7 以降は peerDependencies が厳格なため `react-responsive@5.x` が
 ルートの [`LICENSE`](LICENSE)（BSD-3-Clause / Copyright (c) 2026, tarosay）が適用されます。
 対象は「🆕 新規ファイル」の表に挙げたものです。
 
-- `scratch-vm/src/extensions/scratch3_uiapduino/` 以下
+- `scratch-vm/src/extensions/scratch3_uiapduino/` 以下（**`rv003usbFlasher.js` を除く**。下記）
 - `scratch-gui/src/lib/libraries/extensions/uiapduino/` 以下
 - `sketches/` 以下
 - `build-scratch3-uiapduino.ps1`
 - `README.md`
+
+### 同梱している第三者のコード（MIT）
+
+`scratch-vm/src/extensions/scratch3_uiapduino/rv003usbFlasher.js` は、
+書き込みブロックが使う rv003usb ブートローダへの書き込み処理です。**MIT License。**
+
+出どころは
+<https://yuukiumeta-uiap.github.io/rv003usb-webflasher/rv003usb_webflasher.js>、
+`minichlink` からの移植です。
+
+```
+Copyright (c) 2026 Wong Cho Ching <https://sadale.net>
+Copyright (c) 2023-2024 CNLohr <lohr85@gmail.com>, et. al.
+Copyright (c) 2021 Nanjing Qinheng Microelectronics Co., Ltd.
+Copyright (c) 2023-2024 E. Brombaugh
+Copyright (c) 2023-2024 A. Mandera
+Copyright (c) 2005-2020 Rich Felker, et al.
+Copyright (c) 2013,2014 Michal Ludvig <michal@logix.cz>
+```
+
+ライセンス全文はファイルの冒頭にそのまま残してあります。
+**変更は 3 点だけで、その内容も冒頭に書いてあります**（デバイスを引数で受け取れるように、
+`export default` の追加、strict mode で落ちる暗黙のグローバルの宣言）。
+上流が更新されたときに差分を当て直せるよう、整形はしていません。
 
 ### 上流 Scratch のコード
 
