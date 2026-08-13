@@ -1101,4 +1101,8 @@ class UiapduinoProcessor {
 // ESM の名前付きエクスポートはクラスには載らないので、
 // import UiapduinoProcessor, {CMD} from './uiapduinoProcessor'; と受ける。
 export default UiapduinoProcessor;
-export {CMD, MOUSE_BUTTON, REASON, MARKER, RSP, PROTOCOL_VERSION, SKETCH_VARIANT, VARIANT};
+export {
+    CMD, MOUSE_BUTTON, REASON, MARKER, RSP, PROTOCOL_VERSION, SKETCH_VARIANT, VARIANT,
+    // 書き込みブロックが、焼いた後に基板が戻ってきたかを見るのに使う。
+    DEVICE_FILTER
+};

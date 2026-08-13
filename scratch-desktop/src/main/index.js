@@ -135,9 +135,19 @@ const askForMediaAccess = mediaType => {
 const UIAPDUINO_VENDOR_ID = 0x1209;
 const UIAPDUINO_PRODUCT_ID = 0xD004;
 
+// 書き込みモードの基板 (rv003usb ブートローダ)。通常のスケッチとは別のデバイスで、
+// 書き込みモードに入ると D004 が消えてこちらが現れる。
+//
+// ⚠ これを許可しないと「スケッチを書き込む」ブロックが動かない。
+//   ブロックはデスクトップ版にも並ぶ (拡張本体は Xcratch 版と同じ 1 ファイル) ので、
+//   許可が無いと押しても「書き込みモードになっていません」で止まる。
+const UIAPDUINO_BOOTLOADER_PRODUCT_ID = 0xB803;
+
 const isUiapduino = device => (
-    device.vendorId === UIAPDUINO_VENDOR_ID &&
-    device.productId === UIAPDUINO_PRODUCT_ID
+    device.vendorId === UIAPDUINO_VENDOR_ID && (
+        device.productId === UIAPDUINO_PRODUCT_ID ||
+        device.productId === UIAPDUINO_BOOTLOADER_PRODUCT_ID
+    )
 );
 
 /**

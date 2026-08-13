@@ -18,8 +18,17 @@ import Cast from '../../util/cast';
 import defaultFormatMessage from 'format-message';
 
 import UiapduinoProcessor, {
-    CMD, MOUSE_BUTTON, REASON, PROTOCOL_VERSION, SKETCH_VARIANT
+    CMD, MOUSE_BUTTON, REASON, PROTOCOL_VERSION, SKETCH_VARIANT, DEVICE_FILTER
 } from './uiapduinoProcessor';
+
+// 「スケッチを書き込む」ブロックの中身。どちらも書き込みのときにしか使わない。
+//
+// rv003usbFlasher は第三者のコード (MIT)。あちらの冒頭を読むこと。
+// sketchBin は embed-bin.mjs の生成物で、手で書かない。
+import rv003usbFlasher from './rv003usbFlasher';
+import {
+    SKETCH_BIN_BASE64, SKETCH_BIN_SIZE, SKETCH_BIN_PROTOCOL_VERSION
+} from './sketchBin';
 
 /**
  * 表示中の言語を知るための formatMessage。
@@ -434,6 +443,30 @@ const NEOPIXEL_DEFAULT = {count: 12, brightness: 50};
 const SKETCH_RELEASE_URL = 'https://github.com/tarosay/scratch3-uiapduino/releases/latest';
 
 /**
+ * 書き込みモードの基板 (rv003usb ブートローダ) を選ぶための WebHID フィルタ。
+ *
+ * ⚠ 通常のスケッチが名乗る 1209:D004 とは別のデバイス。
+ *   書き込みモードに入ると D004 は消えて、こちらが現れる。
+ *   だから書き込みブロックは「つながっていること」を前提にできない。
+ * @type {object}
+ */
+const BOOTLOADER_FILTER = {
+    vendorId: 0x1209,
+    productId: 0xB803
+};
+
+/**
+ * 書き込みの後、基板が D004 として戻ってくるのを待つ間隔と回数。
+ *
+ * 再起動と USB の再列挙で 1〜2 秒かかる。10 秒待って現れなければ諦めて、
+ * ステータスボタンから繋ぎ直してもらう。
+ * @type {number}
+ */
+const RECONNECT_INTERVAL_MS = 500;
+/** @type {number} */
+const RECONNECT_TRIES = 20;
+
+/**
  * ブロックの既定ピンについて。
  *
  * CH32V003 では D13 = USB D+ / D14 = USB D- / D17 = RESET で、触ると USB が落ちる。
@@ -505,6 +538,82 @@ const message = {
         ja: 'その版に対応した拡張機能を使うか、書き込み直してください',
         'ja-Hira': 'その はんに たいおうした かくちょうきのうを つかうか、かきこみなおしてください',
         en: 'Use the extension for that variant, or reflash the board'
+    },
+    // --- 書き込みブロック -------------------------------------------------
+    //
+    // 進み具合を表す文言は「書き込みの ようす」レポーターが返す。
+    // 割合を出すものは、この文言の後ろに ' 45%' が付く形にしてある
+    // (flashStatus() を参照)。日本語でも英語でも語順が変わらない。
+    // {version} は同梱スケッチのプロトコル番号に置き換わる (_flashBlocks() を参照)。
+    // 番号を出すのは、押す前に「何を焼くのか」が分かるようにするため。
+    // 「合いません、新しいのは 8 です」と言われた人が、この番号と見比べられる。
+    flashSketch: {
+        ja: 'スケッチ (プロトコル {version}) を書き込む',
+        'ja-Hira': 'スケッチ (プロトコル {version}) を かきこむ',
+        en: 'flash the sketch (protocol {version})'
+    },
+    flashStatus: {
+        ja: '書き込みの ようす',
+        'ja-Hira': 'かきこみの ようす',
+        en: 'flashing status'
+    },
+    flashIdle: {
+        ja: 'まだ書き込んでいません',
+        'ja-Hira': 'まだ かきこんで いません',
+        en: 'not started'
+    },
+    flashPreparing: {
+        ja: '準備中',
+        'ja-Hira': 'じゅんびちゅう',
+        en: 'preparing'
+    },
+    flashFinding: {
+        ja: '基板をさがしています',
+        'ja-Hira': 'きばんを さがして います',
+        en: 'looking for the board'
+    },
+    flashWriting: {
+        ja: '書き込み中',
+        'ja-Hira': 'かきこみちゅう',
+        en: 'writing'
+    },
+    flashVerifying: {
+        ja: 'たしかめ中',
+        'ja-Hira': 'たしかめちゅう',
+        en: 'verifying'
+    },
+    flashRebooting: {
+        ja: '再起動中',
+        'ja-Hira': 'さいきどうちゅう',
+        en: 'restarting'
+    },
+    flashDone: {
+        ja: '書き込めました',
+        'ja-Hira': 'かきこめました',
+        en: 'done'
+    },
+    // 書き込みモードの基板が見つからない。利用者がダイアログで選ばなかった場合も
+    // ここに来る。区別できないので、どちらでも読める言い方にしてある。
+    flashNotBootloader: {
+        ja: '基板が書き込みモードになっていません',
+        'ja-Hira': 'きばんが かきこみモードに なって いません',
+        en: 'the board is not in flashing mode'
+    },
+    // requestDevice() がユーザ操作を要求して失敗した。緑の旗から走らせるとこうなる。
+    flashNeedClick: {
+        ja: 'ブロックをクリックしてください',
+        'ja-Hira': 'ブロックを クリックして ください',
+        en: 'click the block to flash'
+    },
+    flashFailed: {
+        ja: '書き込めませんでした',
+        'ja-Hira': 'かきこめませんでした',
+        en: 'flashing failed'
+    },
+    flashBusy: {
+        ja: '書き込み中です',
+        'ja-Hira': 'かきこみちゅう です',
+        en: 'already flashing'
     },
     connect: {
         ja: 'UIAPduino につなぐ',
@@ -1081,6 +1190,32 @@ class Scratch3Uiapduino {
          */
         this._neoBatchDepth = 0;
 
+        /**
+         * 書き込みが走っている間だけ true。二重に走らせないための番人。
+         *
+         * 焼いている途中にもう一度押されると、同じ Flash に 2 本の書き込みが
+         * 重なる。基板が壊れるわけではないが、照合が食い違って両方失敗する。
+         * @type {boolean}
+         */
+        this._flashing = false;
+
+        /**
+         * 「書き込みの ようす」が返すもの。文言のキーと、割合 (要らなければ null)。
+         *
+         * 文字列そのものではなくキーで持つのは、言語を切り替えたときに
+         * 表示中の文言も追従させるため。組み立ては flashStatus() が行う。
+         * @type {{key: string, percent: ?number}}
+         */
+        this._flashState = {key: 'flashIdle', percent: null};
+
+        /**
+         * 復号した同梱スケッチ。初回の書き込みのときだけ作る。
+         *
+         * base64 のままでは焼けないが、12KB の復号を押すたびに繰り返す必要もない。
+         * @type {?Uint8Array}
+         */
+        this._sketchBinCache = null;
+
         // USB が抜かれたら processor から呼ばれる。
         this.processor.onDisconnected = () => this._handleDisconnectError();
 
@@ -1189,6 +1324,31 @@ class Scratch3Uiapduino {
 
     _getText (key) {
         return message[key][this.locale] || message[key].en;
+    }
+
+    /**
+     * 書き込みブロック 2 つ。パレットの末尾と、スケッチ不一致の説明の両方で使う。
+     *
+     * 同じ定義を 2 か所に書くと、片方だけ直したときに食い違う。
+     * @returns {Array<object>} ブロック定義
+     */
+    _flashBlocks () {
+        return [
+            {
+                opcode: 'flashSketch',
+                // 番号は同梱スケッチのものを出す。拡張機能側の PROTOCOL_VERSION では
+                // なく、実際に焼かれるものの番号でなければ意味がない。
+                // (2 つが食い違っていたら flashSketch() が焼かずに止める)
+                text: this._getText('flashSketch')
+                    .replace('{version}', SKETCH_BIN_PROTOCOL_VERSION),
+                blockType: BlockType.BOOLEAN
+            },
+            {
+                opcode: 'flashStatus',
+                text: this._getText('flashStatus'),
+                blockType: BlockType.REPORTER
+            }
+        ];
     }
 
     /**
@@ -1941,7 +2101,12 @@ class Scratch3Uiapduino {
                     opcode: 'clearQueue',
                     text: this._getText('clearQueue'),
                     blockType: BlockType.COMMAND
-                }
+                },
+                // 書き込みは保守のための操作で、作品を作るのに使うものではない。
+                // だから末尾に置く。同じ 2 つを、スケッチが噛み合わないときの
+                // 説明の中にも出す (getInfo() の下の方)。
+                '---',
+                ...this._flashBlocks()
             ],
             menus: {
                 MODE: {
@@ -2091,6 +2256,13 @@ class Scratch3Uiapduino {
                 blockType: BlockType.COMMAND,
                 text: text
             }));
+
+            // 説明だけで終わらせない。ここが「詰まった人が必ず見る場所」なので、
+            // その場で直せるように書き込みブロックを足す。
+            // URL の行は残す。ブロックで書けなかった人の逃げ道が要る。
+            //
+            // 引数もメニューも持たないブロックなので、menus を空にしても出せる。
+            info.blocks.push('---', ...this._flashBlocks());
             info.menus = {};
         }
 
@@ -2131,6 +2303,252 @@ class Scratch3Uiapduino {
     /** @returns {void} 同上 (対処) */
     sketchProblem2 () {
         // 何もしない
+    }
+
+    // --- スケッチの書き込み ----------------------------------------------
+    //
+    // 書き込み先は通常のスケッチ (1209:D004) ではなく、書き込みモードの基板
+    // (1209:B803) の中の rv003usb ブートローダ。焼く中身は拡張機能に同梱してある。
+    //
+    // ⚠ 書き込みモードに入るのは手作業。基板のボタンを押しながら USB を挿す。
+    //   ブロックからは入れられない (スケッチ側に seamless switch が無いため)。
+
+    /**
+     * 「スケッチを書き込む」ブロック。
+     *
+     * 押した本人のスクリプトだけが待つ。ほかのスクリプトは止まらない。
+     *
+     * @returns {Promise<boolean>} 焼けたら true
+     */
+    flashSketch () {
+        if (this._flashing) {
+            this._setFlashState('flashBusy', null);
+            return Promise.resolve(false);
+        }
+        this._flashing = true;
+        return this._flashSketch()
+            .catch(e => {
+                // ここへ来るのは想定外の失敗だけ。想定内は _flashSketch() が
+                // 文言を立てて false を返す。
+                console.error('[uiapduino] flash failed:', e);
+                this._setFlashState('flashFailed', null);
+                return false;
+            })
+            .then(ok => {
+                this._flashing = false;
+                return ok;
+            });
+    }
+
+    /**
+     * 「書き込みの ようす」ブロック。
+     *
+     * 割合を持つ状態のときだけ、文言の後ろに ' 45%' が付く。
+     *
+     * @returns {string} 今の状態を表す文字列
+     */
+    flashStatus () {
+        const {key, percent} = this._flashState;
+        const text = this._getText(key);
+        return percent === null ? text : `${text} ${percent}%`;
+    }
+
+    /**
+     * 「書き込みの ようす」が返すものを差し替える。
+     *
+     * @param {string} key - message のキー
+     * @param {?number} percent - 割合。要らなければ null
+     * @returns {void}
+     */
+    _setFlashState (key, percent) {
+        this._flashState = {key: key, percent: percent};
+    }
+
+    /**
+     * flashSketch() の中身。番人は呼び出し側で立ててある。
+     *
+     * @returns {Promise<boolean>} 焼けたら true
+     */
+    async _flashSketch () {
+        this._setFlashState('flashPreparing', null);
+
+        // 同梱スケッチと拡張機能が食い違っていたら、焼いても繋がらない。
+        // 焼いた後に「まだ合いません」と言われるのがいちばん分からないので、
+        // 焼く前に止める。起きるのは .bin を作り直し忘れたときだけ。
+        if (SKETCH_BIN_PROTOCOL_VERSION !== PROTOCOL_VERSION) {
+            console.error(
+                '[uiapduino] the embedded sketch does not match this extension: ' +
+                `bin=${SKETCH_BIN_PROTOCOL_VERSION} extension=${PROTOCOL_VERSION}. ` +
+                'Run `node ./scripts/embed-bin.mjs` after rebuilding the .bin.');
+            this._setFlashState('flashFailed', null);
+            return false;
+        }
+
+        const bin = this._sketchBin();
+
+        // 繋がったままだと、こちらは D004 を掴んでいるつもりで居続ける。
+        // 実際には書き込みモードに入った時点で基板は入れ替わっている。
+        if (this.processor.isConnected()) {
+            await this.disconnect();
+        }
+
+        this._setFlashState('flashFinding', null);
+        const device = await this._findBootloader();
+        if (!device) return false;
+
+        const ok = await rv003usbFlasher(bin, status => this._onFlashProgress(status), device);
+        if (!ok) {
+            // 中身の理由は rv003usbFlasher が console に出している。
+            this._setFlashState('flashFailed', null);
+            return false;
+        }
+
+        this._setFlashState('flashDone', null);
+        await this._reconnectAfterFlash();
+        return true;
+    }
+
+    /**
+     * 同梱スケッチを Uint8Array にして返す。初回だけ復号する。
+     *
+     * @returns {Uint8Array} 焼く中身
+     */
+    _sketchBin () {
+        if (this._sketchBinCache) return this._sketchBinCache;
+
+        const raw = atob(SKETCH_BIN_BASE64);
+        const bin = new Uint8Array(raw.length);
+        for (let i = 0; i < raw.length; i++) {
+            bin[i] = raw.charCodeAt(i);
+        }
+        // 生成物が壊れていないかの確認。ここで気づかないと、
+        // 壊れたものを基板へ流し込むことになる。
+        if (bin.length !== SKETCH_BIN_SIZE) {
+            throw new Error(
+                `embedded sketch is broken: ${bin.length} bytes, expected ${SKETCH_BIN_SIZE}`);
+        }
+        this._sketchBinCache = bin;
+        return bin;
+    }
+
+    /**
+     * 書き込みモードの基板を探す。見つからなければ理由を立てて null を返す。
+     *
+     * 許可済みなら getDevices() で拾える。無ければ requestDevice() を出すが、
+     * これはクリック直後でないと SecurityError になる。
+     *
+     * @returns {Promise<?HIDDevice>} 書き込み先。見つからなければ null
+     */
+    async _findBootloader () {
+        let device = null;
+        try {
+            const granted = (await navigator.hid.getDevices()).filter(d => (
+                d.vendorId === BOOTLOADER_FILTER.vendorId &&
+                d.productId === BOOTLOADER_FILTER.productId
+            ));
+            device = granted[0] || null;
+            if (!device) {
+                const picked = await navigator.hid.requestDevice({filters: [BOOTLOADER_FILTER]});
+                device = picked[0] || null;
+            }
+        } catch (e) {
+            // 緑の旗から走らせるとここへ来る。ブロックを押せば通る。
+            if (e && e.name === 'SecurityError') {
+                console.warn('[uiapduino] flashing needs a click:', e);
+                this._setFlashState('flashNeedClick', null);
+            } else {
+                console.error('[uiapduino] bootloader lookup failed:', e);
+                this._setFlashState('flashFailed', null);
+            }
+            return null;
+        }
+
+        if (!device) {
+            // 書き込みモードに入っていないか、ダイアログで選ばれなかったか。
+            // 呼び出し側からは区別が付かない。
+            console.warn('[uiapduino] bootloader not found (1209:B803)');
+            this._setFlashState('flashNotBootloader', null);
+            return null;
+        }
+
+        // 前回の書き込みで開いたままなら閉じる。rv003usbFlasher は必ず open() を
+        // 呼ぶので、開いたまま渡すと InvalidStateError で失敗する。
+        if (device.opened) {
+            try {
+                await device.close();
+            } catch (e) {
+                console.warn('[uiapduino] could not close the bootloader device:', e);
+            }
+        }
+        return device;
+    }
+
+    /**
+     * rv003usbFlasher からの進み具合を「書き込みの ようす」へ移す。
+     *
+     * ⚠ step 4 と 5 の出方には癖がある。あちらは「差分が見つかったか」で
+     *   4 と 5 を切り替えるので、まっさらな基板でも最初の 1 セクタだけは
+     *   5 (たしかめ中) になる。2 周目は全部 5 で終わる。これは正常。
+     *
+     * @param {{step: number, offset: number, size: number}} status - あちらの通知
+     * @returns {void}
+     */
+    _onFlashProgress (status) {
+        const percent = status.size ? Math.floor(status.offset / status.size * 100) : 0;
+        switch (status.step) {
+        case 1:
+            this._setFlashState('flashFinding', null);
+            break;
+        case 4:
+            this._setFlashState('flashWriting', percent);
+            break;
+        case 5:
+            this._setFlashState('flashVerifying', percent);
+            break;
+        case 6:
+            this._setFlashState('flashRebooting', null);
+            break;
+        case 7:
+            this._setFlashState('flashDone', null);
+            break;
+        default:
+            // 0 (読み込み) / 2 (見張りの停止) / 3 (Flash の解錠)
+            this._setFlashState('flashPreparing', null);
+            break;
+        }
+    }
+
+    /**
+     * 書き込みの後、基板が D004 として戻ってきたら繋ぎ直す。
+     *
+     * ⚠ requestDevice() は呼ばない。ここまで来ると最初のクリックから時間が経って
+     *   いて活性化が切れているうえ、運よく通ってもダイアログが 2 回出る。
+     *   許可済みのものが現れたときだけ繋ぐ。
+     *
+     * 繋がると _setSketchProblem(null) が走り、説明に差し替わっていたパレットが
+     * ブロックへ戻る。「押す → 焼ける → ブロックが戻る」を一続きにするための一手。
+     *
+     * @returns {Promise<void>} 繋いだか、諦めたら resolve
+     */
+    async _reconnectAfterFlash () {
+        for (let i = 0; i < RECONNECT_TRIES; i++) {
+            await new Promise(resolve => setTimeout(resolve, RECONNECT_INTERVAL_MS));
+            let found = false;
+            try {
+                found = (await navigator.hid.getDevices()).some(d => (
+                    d.vendorId === DEVICE_FILTER.vendorId &&
+                    d.productId === DEVICE_FILTER.productId
+                ));
+            } catch (e) {
+                console.warn('[uiapduino] could not look for the board after flashing:', e);
+                return;
+            }
+            if (found) {
+                await this._connectAndNotify(false);
+                return;
+            }
+        }
+        console.warn('[uiapduino] the board did not come back after flashing');
     }
 
     /** @returns {void} 同上 (入手先の URL) */

@@ -20,7 +20,10 @@ const projectDir = process.cwd();
 const srcDir = path.resolve(projectDir, '../scratch-vm/src/extensions/scratch3_uiapduino');
 const dstDir = path.resolve(projectDir, 'src/vm/extensions/block');
 
-const files = ['index.js', 'uiapduinoProcessor.js'];
+// ⚠ 拡張本体が読むファイルを増やしたら、ここにも足すこと。
+//   足さないと複製されず、rollup が解決できずにビルドが落ちる。
+//   sketchBin.js は embed-bin.mjs の生成物。
+const files = ['index.js', 'uiapduinoProcessor.js', 'rv003usbFlasher.js', 'sketchBin.js'];
 
 if (!fs.existsSync(srcDir)) {
     console.error(`拡張本体が見つかりません: ${srcDir}`);

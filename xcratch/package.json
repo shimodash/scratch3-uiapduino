@@ -7,6 +7,7 @@
   "scripts": {
     "setup-dev": "node ./scripts/setup-dev.mjs",
     "sync-block": "node ./scripts/sync-block.mjs",
+    "embed-bin": "node ./scripts/embed-bin.mjs",
     "prebuild": "npm run sync-block",
     "build": "rollup -c ./scripts/rollup.config.mjs",
     "postbuild": "node ./scripts/publish-docs.mjs",

@@ -15,6 +15,13 @@ ignore/
 !.gitignore
 !README.md
 
+# スケッチをビルドすると .bin と一緒に出てくるもの。
+# 追跡するのは sketches/ScratchUiapduino.ino.bin だけでよい
+# (拡張機能へ埋め込む元。embed-bin.mjs が読む)。
+/sketches/*.elf
+/sketches/*.hex
+/sketches/*.map
+
 # 上流リポジトリに被せるファイルだけを追跡する（ホワイトリスト方式）。
 # ビルド時に clone される scratch-vm / scratch-gui / scratch-desktop の
 # 本体は追跡しない。
