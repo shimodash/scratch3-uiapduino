@@ -24,7 +24,7 @@ var translations = {
 }
 };
 
-var version$1 = "0.2.3";
+var version$1 = "0.2.4";
 
 /**
  * Xcratch の拡張機能一覧に出す情報。
@@ -4287,6 +4287,933 @@ var UiapduinoProcessor = /*#__PURE__*/function () {
   }]);
 }(); // ESM で書く理由は index.js の冒頭を参照。
 
+/* eslint-disable */
+//
+// ── 同梱物 (第三者のコード) ─────────────────────────────────────────────
+//
+// 出どころ:
+//   https://yuukiumeta-uiap.github.io/rv003usb-webflasher/rv003usb_webflasher.js
+//
+// rv003usb ブートローダへ WebHID で .bin を書き込む処理。ライセンスは下の MIT。
+//
+// ⚠ 整形しない。lint も掛けない (先頭で無効にしてある)。
+//   上流が更新されたときに差分を当て直せるよう、元の形のまま置いてある。
+//
+// 元のファイルからの変更は 3 つだけ:
+//
+//   1. デバイスを引数で受け取れるようにした (末尾の device 引数)。
+//      元は関数の中で requestDevice() を呼ぶため、「基板が書き込みモードでない」と
+//      「書き込みに失敗した」を呼び出し側で区別できず、先に自分で取ろうとすると
+//      デバイス選択のダイアログが 2 回出る。
+//
+//   2. ESM として読めるように export default を足した。
+//      この拡張機能は rollup (Xcratch 版) でも束ねるので ESM である必要がある。
+//
+//   3. uint32value_to_array() の `ret` に let を足した (96 行)。
+//      元は宣言なしの代入で、暗黙のグローバルになっていた。<script> から読む限り
+//      これで動くが、**ES モジュールは常に strict mode** なので
+//      `ReferenceError: ret is not defined` で落ちる。2026-08-14 に実機で踏んだ。
+//      上流にとっても直す価値のある差分。
+//
+// これ以外は 1 文字も変えていない。
+//
+// ⚠ 同じ理由の壊れ方が他に無いことは eslint の no-undef で確かめてある
+//   (この先頭の eslint-disable を外した複製を作って掛ける)。
+//
+/*
+This WebFlasher is adapted from minichlink <https://github.com/cnlohr/ch32fun/tree/master/minichlink>
+The adaptation was made by Sadale.
+
+MIT License
+Copyright (c) 2026 Wong Cho Ching <https://sadale.net>
+Copyright (c) 2023-2024 CNLohr <lohr85@gmail.com>, et. al.
+Copyright (c) 2021 Nanjing Qinheng Microelectronics Co., Ltd.
+Copyright (c) 2023-2024 E. Brombaugh
+Copyright (c) 2023-2024 A. Mandera
+Copyright (c) 2005-2020 Rich Felker, et al.
+Copyright (c) 2013,2014 Michal Ludvig <michal@logix.cz>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
+function rv003usb_webflasher(_x, _x2) {
+  return _rv003usb_webflasher.apply(this, arguments);
+}
+function _rv003usb_webflasher() {
+  _rv003usb_webflasher = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime.mark(function _callee9(uint8arraycontent, status_callback) {
+    var device_from_caller,
+      USB_VID,
+      USB_PID,
+      FLASH_BASE,
+      FLASH_SIZE,
+      SECTOR_SIZE,
+      dataview_to_uint8array,
+      payload_obtain_uint8array,
+      uint32value_to_array,
+      bulid_halt_wait_payload,
+      bulid_read_payload,
+      bulid_write_payload,
+      bulid_write64_flash_payload,
+      bulid_run_app_payload,
+      communicate_usb,
+      _communicate_usb,
+      communicate_halt_wait,
+      _communicate_halt_wait,
+      communicate_read_word,
+      _communicate_read_word,
+      communicate_write_word,
+      _communicate_write_word,
+      communicate_verify64,
+      _communicate_verify,
+      communicate_flash64,
+      _communicate_flash,
+      communicate_run_app,
+      _communicate_run_app,
+      communicate_flash_unlock,
+      _communicate_flash_unlock,
+      pad_rom_to_64,
+      image_content,
+      device,
+      difference_found,
+      retries,
+      i,
+      address,
+      image_chunk,
+      _args9 = arguments,
+      _t14,
+      _t15,
+      _t16,
+      _t17;
+    return _regeneratorRuntime.wrap(function (_context9) {
+      while (1) switch (_context9.prev = _context9.next) {
+        case 0:
+          pad_rom_to_64 = function _pad_rom_to_(content) {
+            var ret = new Uint8Array(Math.floor((content.byteLength + 63) / 64) * 64);
+            ret.fill(0xFF);
+            ret.set(content, 0);
+            return ret;
+          };
+          _communicate_flash_unlock = function _communicate_flash_un2() {
+            _communicate_flash_unlock = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime.mark(function _callee8(device) {
+              var rw, _rw, _t9, _t0, _t1, _t10, _t11, _t12;
+              return _regeneratorRuntime.wrap(function (_context8) {
+                while (1) switch (_context8.prev = _context8.next) {
+                  case 0:
+                    _context8.next = 1;
+                    return communicate_read_word(device, 0x40022010);
+                  case 1:
+                    rw = _context8.sent;
+                    if (!(rw === null)) {
+                      _context8.next = 2;
+                      break;
+                    }
+                    console.error("Flash unlock status read error A");
+                    return _context8.abrupt("return", null);
+                  case 2:
+                    if (!(rw & 0x8080)) {
+                      _context8.next = 16;
+                      break;
+                    }
+                    _context8.next = 3;
+                    return communicate_write_word(device, 0x40022004, 0x45670123);
+                  case 3:
+                    _t9 = _context8.sent;
+                    if (!(_t9 === null)) {
+                      _context8.next = 4;
+                      break;
+                    }
+                    return _context8.abrupt("return", null);
+                  case 4:
+                    _context8.next = 5;
+                    return communicate_write_word(device, 0x40022004, 0xCDEF89AB);
+                  case 5:
+                    _t0 = _context8.sent;
+                    if (!(_t0 === null)) {
+                      _context8.next = 6;
+                      break;
+                    }
+                    return _context8.abrupt("return", null);
+                  case 6:
+                    _context8.next = 7;
+                    return communicate_write_word(device, 0x40022008, 0x45670123);
+                  case 7:
+                    _t1 = _context8.sent;
+                    if (!(_t1 === null)) {
+                      _context8.next = 8;
+                      break;
+                    }
+                    return _context8.abrupt("return", null);
+                  case 8:
+                    _context8.next = 9;
+                    return communicate_write_word(device, 0x40022008, 0xCDEF89AB);
+                  case 9:
+                    _t10 = _context8.sent;
+                    if (!(_t10 === null)) {
+                      _context8.next = 10;
+                      break;
+                    }
+                    return _context8.abrupt("return", null);
+                  case 10:
+                    _context8.next = 11;
+                    return communicate_write_word(device, 0x40022024, 0x45670123);
+                  case 11:
+                    _t11 = _context8.sent;
+                    if (!(_t11 === null)) {
+                      _context8.next = 12;
+                      break;
+                    }
+                    return _context8.abrupt("return", null);
+                  case 12:
+                    _context8.next = 13;
+                    return communicate_write_word(device, 0x40022024, 0xCDEF89AB);
+                  case 13:
+                    _t12 = _context8.sent;
+                    if (!(_t12 === null)) {
+                      _context8.next = 14;
+                      break;
+                    }
+                    return _context8.abrupt("return", null);
+                  case 14:
+                    _context8.next = 15;
+                    return communicate_read_word(device, 0x40022010);
+                  case 15:
+                    _rw = _context8.sent;
+                    if (!(_rw === null || _rw & 0x8080)) {
+                      _context8.next = 16;
+                      break;
+                    }
+                    console.error("Flash unlock failure " + _rw);
+                    return _context8.abrupt("return", null);
+                  case 16:
+                    _context8.next = 17;
+                    return communicate_read_word(device, 0x4002201c);
+                  case 17:
+                    rw = _context8.sent;
+                    if (!(rw === null)) {
+                      _context8.next = 18;
+                      break;
+                    }
+                    return _context8.abrupt("return", null);
+                  case 18:
+                    if (!(rw & 2)) {
+                      _context8.next = 19;
+                      break;
+                    }
+                    console.error("WARNING: Your part appears to have flash [read] locked.  Cannot program unless unlocked.");
+                    return _context8.abrupt("return", null);
+                  case 19:
+                    return _context8.abrupt("return", 0);
+                  case 20:
+                  case "end":
+                    return _context8.stop();
+                }
+              }, _callee8);
+            }));
+            return _communicate_flash_unlock.apply(this, arguments);
+          };
+          communicate_flash_unlock = function _communicate_flash_un(_x16) {
+            return _communicate_flash_unlock.apply(this, arguments);
+          };
+          _communicate_run_app = function _communicate_run_app3() {
+            _communicate_run_app = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime.mark(function _callee7(device) {
+              return _regeneratorRuntime.wrap(function (_context7) {
+                while (1) switch (_context7.prev = _context7.next) {
+                  case 0:
+                    _context7.next = 1;
+                    return communicate_usb(device, bulid_run_app_payload(), false);
+                  case 1:
+                    return _context7.abrupt("return", _context7.sent);
+                  case 2:
+                  case "end":
+                    return _context7.stop();
+                }
+              }, _callee7);
+            }));
+            return _communicate_run_app.apply(this, arguments);
+          };
+          communicate_run_app = function _communicate_run_app2(_x15) {
+            return _communicate_run_app.apply(this, arguments);
+          };
+          _communicate_flash = function _communicate_flash3() {
+            _communicate_flash = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime.mark(function _callee6(device, address, data) {
+              var result, timeout, _t3, _t4, _t5, _t6, _t7, _t8;
+              return _regeneratorRuntime.wrap(function (_context6) {
+                while (1) switch (_context6.prev = _context6.next) {
+                  case 0:
+                    _context6.next = 1;
+                    return communicate_write_word(device, 0x40022010, 0x00020000);
+                  case 1:
+                    _t3 = _context6.sent;
+                    if (!(_t3 === null)) {
+                      _context6.next = 2;
+                      break;
+                    }
+                    return _context6.abrupt("return", null);
+                  case 2:
+                    _context6.next = 3;
+                    return communicate_write_word(device, 0x40022014, address);
+                  case 3:
+                    _t4 = _context6.sent;
+                    if (!(_t4 === null)) {
+                      _context6.next = 4;
+                      break;
+                    }
+                    return _context6.abrupt("return", null);
+                  case 4:
+                    _context6.next = 5;
+                    return communicate_write_word(device, 0x40022010, 0x00020040);
+                  case 5:
+                    _t5 = _context6.sent;
+                    if (!(_t5 === null)) {
+                      _context6.next = 6;
+                      break;
+                    }
+                    return _context6.abrupt("return", null);
+                  case 6:
+                    // Wait for completion of page erase
+                    result = 0x03;
+                    timeout = 0;
+                  case 7:
+                    _context6.next = 8;
+                    return communicate_read_word(device, 0x4002200C);
+                  case 8:
+                    result = _context6.sent;
+                    if (!(result === null)) {
+                      _context6.next = 9;
+                      break;
+                    }
+                    console.error("Flash wait communication error!");
+                    return _context6.abrupt("return", null);
+                  case 9:
+                    if (!(timeout++ > 1000)) {
+                      _context6.next = 10;
+                      break;
+                    }
+                    console.error("Warning: Flash erase timed out. STATR = " + result);
+                    return _context6.abrupt("return", null);
+                  case 10:
+                    if (result & 0x03) {
+                      _context6.next = 7;
+                      break;
+                    }
+                  case 11:
+                    if (!(result & 0x00000010)) {
+                      _context6.next = 12;
+                      break;
+                    }
+                    console.error("Memory Protection Error");
+                    return _context6.abrupt("return", null);
+                  case 12:
+                    _context6.next = 13;
+                    return communicate_write_word(device, 0x40022010, 0x00010000);
+                  case 13:
+                    _t6 = _context6.sent;
+                    if (!(_t6 === null)) {
+                      _context6.next = 14;
+                      break;
+                    }
+                    console.error("FLASH->CTLR = CR_PAGE_PG Error");
+                    return _context6.abrupt("return", null);
+                  case 14:
+                    _context6.next = 15;
+                    return communicate_write_word(device, 0x40022010, 0x00090000);
+                  case 15:
+                    _t7 = _context6.sent;
+                    if (!(_t7 === null)) {
+                      _context6.next = 16;
+                      break;
+                    }
+                    console.error("FLASH->CTLR = CR_PAGE_PG | CR_BUF_RST Error");
+                    return _context6.abrupt("return", null);
+                  case 16:
+                    _context6.next = 17;
+                    return communicate_usb(device, bulid_write64_flash_payload(address, data));
+                  case 17:
+                    _t8 = _context6.sent;
+                    if (!(_t8 === null)) {
+                      _context6.next = 18;
+                      break;
+                    }
+                    console.error("flash write64 error");
+                    return _context6.abrupt("return", null);
+                  case 18:
+                    return _context6.abrupt("return", 0);
+                  case 19:
+                  case "end":
+                    return _context6.stop();
+                }
+              }, _callee6);
+            }));
+            return _communicate_flash.apply(this, arguments);
+          };
+          communicate_flash64 = function _communicate_flash2(_x12, _x13, _x14) {
+            return _communicate_flash.apply(this, arguments);
+          };
+          _communicate_verify = function _communicate_verify3() {
+            _communicate_verify = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime.mark(function _callee5(device, address, expected_data) {
+              var result, _i5;
+              return _regeneratorRuntime.wrap(function (_context5) {
+                while (1) switch (_context5.prev = _context5.next) {
+                  case 0:
+                    _context5.next = 1;
+                    return communicate_usb(device, bulid_read_payload(address, 64));
+                  case 1:
+                    result = _context5.sent;
+                    if (!(result === null || result.length < 60 + 64)) {
+                      _context5.next = 2;
+                      break;
+                    }
+                    return _context5.abrupt("return", null);
+                  case 2:
+                    _i5 = 0;
+                  case 3:
+                    if (!(_i5 < 64)) {
+                      _context5.next = 5;
+                      break;
+                    }
+                    if (!(expected_data[_i5] != result[60 + _i5])) {
+                      _context5.next = 4;
+                      break;
+                    }
+                    return _context5.abrupt("return", false);
+                  case 4:
+                    _i5++;
+                    _context5.next = 3;
+                    break;
+                  case 5:
+                    return _context5.abrupt("return", true);
+                  case 6:
+                  case "end":
+                    return _context5.stop();
+                }
+              }, _callee5);
+            }));
+            return _communicate_verify.apply(this, arguments);
+          };
+          communicate_verify64 = function _communicate_verify2(_x1, _x10, _x11) {
+            return _communicate_verify.apply(this, arguments);
+          };
+          _communicate_write_word = function _communicate_write_wo2() {
+            _communicate_write_word = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime.mark(function _callee4(device, address, data) {
+              var result, ret, _i4;
+              return _regeneratorRuntime.wrap(function (_context4) {
+                while (1) switch (_context4.prev = _context4.next) {
+                  case 0:
+                    _context4.next = 1;
+                    return communicate_usb(device, bulid_write_payload(address, 4, uint32value_to_array(data)));
+                  case 1:
+                    result = _context4.sent;
+                    if (!(result === null || result.length < 64)) {
+                      _context4.next = 2;
+                      break;
+                    }
+                    return _context4.abrupt("return", null);
+                  case 2:
+                    ret = 0;
+                    for (_i4 = 0; _i4 < 4; _i4++) {
+                      ret += result[60 + _i4] * Math.pow(2, _i4 * 8);
+                    }
+                    return _context4.abrupt("return", ret);
+                  case 3:
+                  case "end":
+                    return _context4.stop();
+                }
+              }, _callee4);
+            }));
+            return _communicate_write_word.apply(this, arguments);
+          };
+          communicate_write_word = function _communicate_write_wo(_x8, _x9, _x0) {
+            return _communicate_write_word.apply(this, arguments);
+          };
+          _communicate_read_word = function _communicate_read_wor2() {
+            _communicate_read_word = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime.mark(function _callee3(device, address) {
+              var result, ret, _i3;
+              return _regeneratorRuntime.wrap(function (_context3) {
+                while (1) switch (_context3.prev = _context3.next) {
+                  case 0:
+                    _context3.next = 1;
+                    return communicate_usb(device, bulid_read_payload(address, 4));
+                  case 1:
+                    result = _context3.sent;
+                    if (!(result === null || result.length < 64)) {
+                      _context3.next = 2;
+                      break;
+                    }
+                    return _context3.abrupt("return", null);
+                  case 2:
+                    ret = 0;
+                    for (_i3 = 0; _i3 < 4; _i3++) {
+                      ret += result[60 + _i3] * Math.pow(2, _i3 * 8);
+                    }
+                    return _context3.abrupt("return", ret);
+                  case 3:
+                  case "end":
+                    return _context3.stop();
+                }
+              }, _callee3);
+            }));
+            return _communicate_read_word.apply(this, arguments);
+          };
+          communicate_read_word = function _communicate_read_wor(_x6, _x7) {
+            return _communicate_read_word.apply(this, arguments);
+          };
+          _communicate_halt_wait = function _communicate_halt_wai2() {
+            _communicate_halt_wait = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime.mark(function _callee2(device) {
+              return _regeneratorRuntime.wrap(function (_context2) {
+                while (1) switch (_context2.prev = _context2.next) {
+                  case 0:
+                    _context2.next = 1;
+                    return communicate_usb(device, bulid_halt_wait_payload());
+                  case 1:
+                    return _context2.abrupt("return", _context2.sent);
+                  case 2:
+                  case "end":
+                    return _context2.stop();
+                }
+              }, _callee2);
+            }));
+            return _communicate_halt_wait.apply(this, arguments);
+          };
+          communicate_halt_wait = function _communicate_halt_wai(_x5) {
+            return _communicate_halt_wait.apply(this, arguments);
+          };
+          _communicate_usb = function _communicate_usb3() {
+            _communicate_usb = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime.mark(function _callee(device, command) {
+              var readback,
+                retries,
+                timeout,
+                response,
+                dataview,
+                _args = arguments;
+              return _regeneratorRuntime.wrap(function (_context) {
+                while (1) switch (_context.prev = _context.next) {
+                  case 0:
+                    readback = _args.length > 2 && _args[2] !== undefined ? _args[2] : true;
+                    retries = 0;
+                  case 1:
+                    _context.prev = 2;
+                    _context.next = 3;
+                    return device.sendFeatureReport(command[0], command.slice(1));
+                  case 3:
+                    return _context.abrupt("continue", 6);
+                  case 4:
+                    _context.prev = 4;
+                    _context["catch"](2);
+                    if (!(retries++ > 10)) {
+                      _context.next = 5;
+                      break;
+                    }
+                    console.error("sendFeatureReport retries exceeded!");
+                    return _context.abrupt("return", null);
+                  case 5:
+                    _context.next = 1;
+                    break;
+                  case 6:
+                    if (readback) {
+                      _context.next = 7;
+                      break;
+                    }
+                    return _context.abrupt("return", 0);
+                  case 7:
+                    retries = 0;
+                    timeout = 0;
+                    response = null;
+                  case 8:
+                    _context.prev = 9;
+                    _context.next = 10;
+                    return device.receiveFeatureReport(command[0]);
+                  case 10:
+                    dataview = _context.sent;
+                    response = dataview_to_uint8array(dataview);
+                    if (!(response.byteLength == command.byteLength && response[1] == 0xff)) {
+                      _context.next = 11;
+                      break;
+                    }
+                    return _context.abrupt("continue", 15);
+                  case 11:
+                    if (!(timeout++ > 20)) {
+                      _context.next = 12;
+                      break;
+                    }
+                    console.error("receiveFeatureReport timeout!");
+                    return _context.abrupt("return", null);
+                  case 12:
+                    _context.next = 14;
+                    break;
+                  case 13:
+                    _context.prev = 13;
+                    _context["catch"](9);
+                    if (!(retries++ > 10)) {
+                      _context.next = 14;
+                      break;
+                    }
+                    console.error("receiveFeatureReport retries exceeded!");
+                    return _context.abrupt("return", null);
+                  case 14:
+                    _context.next = 8;
+                    break;
+                  case 15:
+                    return _context.abrupt("return", response);
+                  case 16:
+                  case "end":
+                    return _context.stop();
+                }
+              }, _callee, null, [[2, 4], [9, 13]]);
+            }));
+            return _communicate_usb.apply(this, arguments);
+          };
+          communicate_usb = function _communicate_usb2(_x3, _x4) {
+            return _communicate_usb.apply(this, arguments);
+          };
+          bulid_run_app_payload = function _bulid_run_app_payloa() {
+            // blob_run_app
+            var payload = [0xb7, 0xf5, 0xff, 0x1f,
+            // li     a1,0x1FFFF000   - load offset to a1
+            0x93, 0x87, 0xc5, 0x77,
+            // addi   a5,a1,0x77C     - load absolute address of secret area to a5
+            0x03, 0xa7, 0x07, 0x00,
+            // lw     a4,0(a5)        - load reboot function offset + xor from secret to a4
+            0x13, 0x57, 0x07, 0x01,
+            // srli   a4,a4,16        - shift it to remove lower part (offset)
+            0x83, 0x96, 0x07, 0x00,
+            // lh     a3,0(a5)        - load offset part to a3
+            0x93, 0xc7, 0xc6, 0x77,
+            // xori   a5,a3,0x77C     - find current xor
+            0x63, 0x16, 0xf7, 0x00,
+            // bne    a4,a5,.L2       - if xor is valid
+            0x33, 0x87, 0xb6, 0x00,
+            // add    a4, a3, a1      - make absolute address of reboot function an jump
+            0x67, 0x00, 0x07, 0x00,
+            // jr     a4              - jump to it
+            /* else - means that we didn't find a reboot function address
+            and need to send the blob to do a reboot
+            .L2:                                                - Same sequence as in "Run app blob (old)"*/
+            0xb7, 0x27, 0x02, 0x40,
+            // li     a5,1073881088
+            0x93, 0x87, 0x87, 0x02,
+            // addi   a5,a5,40
+            0x37, 0x07, 0x67, 0x45,
+            // li     a4,1164378112
+            0x13, 0x07, 0x37, 0x12,
+            // addi   a4,a4,291
+            0x23, 0xa0, 0xe7, 0x00,
+            // sw     a4,0(a5)
+            0xb7, 0x27, 0x02, 0x40,
+            // li     a5,1073881088
+            0x93, 0x87, 0x87, 0x02,
+            // addi   a5,a5,40
+            0x37, 0x97, 0xef, 0xcd,
+            // li     a4,-839938048
+            0x13, 0x07, 0xb7, 0x9a,
+            // addi   a4,a4,-1621
+            0x23, 0xa0, 0xe7, 0x00,
+            // sw     a4,0(a5)
+            0xb7, 0x27, 0x02, 0x40,
+            // li     a5,1073881088
+            0x93, 0x87, 0xc7, 0x00,
+            // addi   a5,a5,12
+            0x23, 0xa0, 0x07, 0x00,
+            // sw     zero,0(a5)
+            0xb7, 0x27, 0x02, 0x40,
+            // li     a5,1073881088
+            0x93, 0x87, 0x07, 0x01,
+            // addi   a5,a5,16
+            0x13, 0x07, 0x00, 0x08,
+            // li     a4,128
+            0x23, 0xa0, 0xe7, 0x00,
+            // sw     a4,0(a5)
+            0xb7, 0xf7, 0x00, 0xe0,
+            // li     a5,-536809472
+            0x93, 0x87, 0x07, 0xd1,
+            // addi   a5,a5,-752
+            0x37, 0x07, 0x00, 0x80,
+            // li     a4,-2147483648
+            0x23, 0xa0, 0xe7, 0x00 // sw     a4,0(a5)
+            ];
+            return payload_obtain_uint8array(payload);
+          };
+          bulid_write64_flash_payload = function _bulid_write64_flash_(address, content) {
+            var _payload;
+            // blob_write64_flash, size and address must be aligned by 4.
+            var payload = [0x13, 0x07, 0x45, 0x03, 0x0c, 0x43, 0x13, 0x86, 0x05, 0x04, 0x5c, 0x43, 0x8c, 0xc7, 0x14, 0x47, 0x94, 0xc1, 0xb7, 0x06, 0x05, 0x00, 0xd4, 0xc3, 0x94, 0x41, 0x91, 0x05, 0x11, 0x07, 0xe3, 0xc8, 0xc5, 0xfe, 0xc1, 0x66, 0x93, 0x86, 0x06, 0x04, 0xd4, 0xc3, 0xfd, 0x56, 0x14, 0xc1, 0x82, 0x80];
+            payload = payload.concat(uint32value_to_array(address));
+            payload = payload.concat(uint32value_to_array(0x4002200C)); // FLASH->STATR
+            payload = (_payload = payload).concat.apply(_payload, _toConsumableArray(content));
+            return payload_obtain_uint8array(payload);
+          };
+          bulid_write_payload = function _bulid_write_payload(address, size, content) {
+            // blob_word_write, size and address must be aligned by 4.
+            var payload = [0x23, 0xa0, 0x05, 0x00, 0x13, 0x07, 0x45, 0x03, 0x0c, 0x43, 0x50, 0x43, 0x2e, 0x96, 0x21, 0x07, 0x14, 0x43, 0x94, 0xc1, 0x91, 0x05, 0x11, 0x07, 0xe3, 0xcc, 0xc5, 0xfe, 0x93, 0x06, 0xf0, 0xff, 0x14, 0xc1, 0x82, 0x80,
+            // NOTE: No readback!
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
+            payload = payload.concat(uint32value_to_array(address));
+            payload = payload.concat(uint32value_to_array(size));
+            payload = payload.concat(content);
+            return payload_obtain_uint8array(payload);
+          };
+          bulid_read_payload = function _bulid_read_payload(address, size) {
+            // blob_word_read, size and address must be aligned by 4.
+            var payload = [0x23, 0xa0, 0x05, 0x00, 0x13, 0x07, 0x45, 0x03, 0x0c, 0x43, 0x50, 0x43, 0x2e, 0x96, 0x21, 0x07, 0x94, 0x41, 0x14, 0xc3, 0x91, 0x05, 0x11, 0x07, 0xe3, 0xcc, 0xc5, 0xfe, 0x93, 0x06, 0xf0, 0xff, 0x14, 0xc1, 0x82, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
+            payload = payload.concat(uint32value_to_array(address));
+            payload = payload.concat(uint32value_to_array(size));
+            return payload_obtain_uint8array(payload);
+          };
+          bulid_halt_wait_payload = function _bulid_halt_wait_payl() {
+            return payload_obtain_uint8array([0x81, 0x46, 0x94, 0xc1, 0xfd, 0x56, 0x14, 0xc1, 0x82, 0x80]);
+          };
+          uint32value_to_array = function _uint32value_to_array(uint32value) {
+            if (uint32value < 0 || uint32value > Math.pow(2, 32) - 1) {
+              throw new Error("uint32value out of range");
+            }
+            var ret = []; // ← 変更 3: 元は宣言なし (strict mode で ReferenceError になる)
+            // Convert to little endian
+            for (var i = 0; i < 4; i++) {
+              ret.push(uint32value & 0xFF);
+              uint32value /= 256;
+            }
+            return ret;
+          };
+          payload_obtain_uint8array = function _payload_obtain_uint(content) {
+            var payload_size = 128;
+            var blob_prefix = [0xaa, 0x00, 0x00, 0x00];
+            var blob_suffix = [0xcd, 0xab, 0x34, 0x12];
+            if (blob_prefix.length + blob_suffix.length + content.length > payload_size) {
+              throw new Error("Payload content too long!");
+            }
+            var ret = new Uint8Array(payload_size);
+            for (var i = 0; i < blob_prefix.length; i++) {
+              ret[i] = blob_prefix[i];
+            }
+            for (var _i = 0; _i < blob_suffix.length; _i++) {
+              ret[ret.length - blob_suffix.length + _i] = blob_suffix[_i];
+            }
+            for (var _i2 = 0; _i2 < content.length; _i2++) {
+              ret[blob_prefix.length + _i2] = content[_i2];
+            }
+            return ret;
+          };
+          dataview_to_uint8array = function _dataview_to_uint8arr(dataview) {
+            var ret = new Uint8Array(dataview.byteLength);
+            for (var i = 0; i < dataview.byteLength; i++) {
+              ret[i] = dataview.getUint8(i);
+            }
+            return ret;
+          };
+          device_from_caller = _args9.length > 2 && _args9[2] !== undefined ? _args9[2] : null;
+          USB_VID = 0x1209;
+          USB_PID = 0xB803;
+          FLASH_BASE = 0x08000000;
+          FLASH_SIZE = 16384; // Use 63488 for CH32V006 support
+          SECTOR_SIZE = 64;
+          image_content = pad_rom_to_64(uint8arraycontent);
+          status_callback({
+            step: 0,
+            offset: 0,
+            size: image_content.byteLength
+          });
+          if (!(image_content.byteLength > FLASH_SIZE)) {
+            _context9.next = 1;
+            break;
+          }
+          console.error("ROM size too large!");
+          return _context9.abrupt("return", null);
+        case 1:
+          status_callback({
+            step: 1,
+            offset: 0,
+            size: image_content.byteLength
+          });
+          device = device_from_caller;
+          _context9.prev = 2;
+          if (device) {
+            _context9.next = 4;
+            break;
+          }
+          _context9.next = 3;
+          return navigator.hid.requestDevice({
+            filters: [{
+              vendorId: USB_VID,
+              productId: USB_PID
+            }]
+          });
+        case 3:
+          device = _context9.sent;
+          device = device[0];
+        case 4:
+          _context9.next = 5;
+          return device.open();
+        case 5:
+          _context9.next = 7;
+          break;
+        case 6:
+          _context9.prev = 6;
+          _context9["catch"](2);
+          console.error("device.open() failed");
+          return _context9.abrupt("return", null);
+        case 7:
+          status_callback({
+            step: 2,
+            offset: 0,
+            size: image_content.byteLength
+          });
+          _context9.next = 8;
+          return communicate_halt_wait(device);
+        case 8:
+          _t14 = _context9.sent;
+          if (!(_t14 === null)) {
+            _context9.next = 9;
+            break;
+          }
+          console.error("communicate_halt_wait() failed");
+          return _context9.abrupt("return", null);
+        case 9:
+          status_callback({
+            step: 3,
+            offset: 0,
+            size: image_content.byteLength
+          });
+          _context9.next = 10;
+          return communicate_flash_unlock(device);
+        case 10:
+          _t15 = _context9.sent;
+          if (!(_t15 === null)) {
+            _context9.next = 11;
+            break;
+          }
+          console.error("communicate_flash_unlock() failed");
+          return _context9.abrupt("return", null);
+        case 11:
+          difference_found = true;
+          retries = 0;
+        case 12:
+          if (!(difference_found && retries++ < 5)) {
+            _context9.next = 18;
+            break;
+          }
+          difference_found = false;
+          i = 0;
+        case 13:
+          if (!(i < image_content.byteLength)) {
+            _context9.next = 17;
+            break;
+          }
+          address = FLASH_BASE + i;
+          image_chunk = image_content.slice(i, i + SECTOR_SIZE);
+          status_callback({
+            step: difference_found ? 4 : 5,
+            offset: i,
+            size: image_content.byteLength
+          });
+          _context9.next = 14;
+          return communicate_verify64(device, address, image_chunk);
+        case 14:
+          if (_context9.sent) {
+            _context9.next = 16;
+            break;
+          }
+          if (!difference_found) {
+            difference_found = true;
+          }
+          _context9.next = 15;
+          return communicate_flash64(device, address, image_chunk);
+        case 15:
+          _t16 = _context9.sent;
+          if (!(_t16 === null)) {
+            _context9.next = 16;
+            break;
+          }
+          console.error("Unable to write flash at offset " + (FLASH_BASE + i).toString(16));
+          return _context9.abrupt("return", null);
+        case 16:
+          i += SECTOR_SIZE;
+          _context9.next = 13;
+          break;
+        case 17:
+          _context9.next = 12;
+          break;
+        case 18:
+          if (!difference_found) {
+            _context9.next = 19;
+            break;
+          }
+          console.error("Unable to write flash with correct content after multiple retries");
+          return _context9.abrupt("return", null);
+        case 19:
+          status_callback({
+            step: 6,
+            offset: image_content.byteLength,
+            size: image_content.byteLength
+          });
+          _context9.next = 20;
+          return communicate_run_app(device);
+        case 20:
+          _t17 = _context9.sent;
+          if (!(_t17 === null)) {
+            _context9.next = 21;
+            break;
+          }
+          console.error("communicate_run_app() failed");
+          return _context9.abrupt("return", null);
+        case 21:
+          status_callback({
+            step: 7,
+            offset: image_content.byteLength,
+            size: image_content.byteLength
+          });
+          return _context9.abrupt("return", true);
+        case 22:
+        case "end":
+          return _context9.stop();
+      }
+    }, _callee9, null, [[2, 6]]);
+  }));
+  return _rv003usb_webflasher.apply(this, arguments);
+}
+
+// このファイルは xcratch/scripts/embed-bin.mjs が作る。手で直さない。
+//
+// 中身は sketches/ScratchUiapduino.ino.bin をそのまま base64 にしたもの。
+// 「スケッチを書き込む」ブロックが、これを基板の Flash へ流し込む。
+//
+// .ino を直したら、ビルドし直した .bin を sketches/ へ置いてから
+//   node ./scripts/embed-bin.mjs
+// を走らせ、この生成物と docs/uiapduino.mjs を一緒にコミットすること。
+
+/**
+ * 同梱している .bin (base64)。
+ *
+ * 1 行が長くなりすぎないように分けてあるだけで、繋げば元の 1 本に戻る。
+ * @type {string}
+ */
+var SKETCH_BIN_BASE64 = ['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', '0AVj46cQjWeTh0ecCgU+lRxBgoeJRyMA9gD5R22/iUcjAPYA/UdFv4lHIwD2AJMHAAJVt4lHIwD2AJMH', 'EAJhv4lHIwD2AJMHIAJxt4lHIwD2AJMHMAJBt4lHIwD2AJMHQAKVv4lHIwD2AJMHUAKlt4lHIwD2AJMH', 'YAKxv4lHIwD2AD2/iUcjAPYAkwfQAqG3iUcjAPYAkwfgAjW/iUcjAPYAkwfwAgW/iUcjAPYAkwcAAxW3', 'iUcjAPYAkwcQAyG/iUcjAPYAkwcwAzG3iUcjAPYAkwdAAwG3iUcjAPYAkwdQA9W9iUcjAPYAkwdgA+W1', 'iUcjAPYAkwdwA/G9iUcjAPYAkweAA8G9AUWCgAPDQcWTB/AHvoZjyqcAEwcQ+LqGY0XlAJMWhQHhhhMH', '8AdjyrcAkwcQ+D6HY8X1ABOXhQFhhyOGYcKT9vYPk4fBwqOA1wATd/cPI4HnABN29g+jgccAgoARESLK', 'LoSyhQbMJsgywCrC7/CfhIJFqoQihe/w/4MSR6qHgegZx5MkFwCzBJBAk+QUAIHrGcSTJxQAswfwQJPn', 'FwAZ5yXo4kBSRMJEcQGCgJNW90EzxuYAk9X0QRWOs8aVAI2OOoVj08YAJoWBRRnMk1b0QZPV90EzxoYA', 'FY6zxvUAjY6ihWPTxgC+hQFGPsQ6xi7CKsAJPwJFMkeSRQmPN1UHABMFBTA6wA2MqTaiRwJHQb8BRW2/', 'txcDAJOHF9QDx3HFBcf9F+X/IUYzB/UAg0UHABOHgcE+lyMAtwCFB+OWx/6FR6OL8cSCgIFH8b9RERMH', 'IAUGxKMBAQAjAgEAowIBACMDAQCjAwEAIwDhAKMAoQAjAcEAkcUJxhMFMQDvABAStzcMAJOHF1CDxnHF', 'mcL9F+X/CoVBN6JAN9UIABMFBaAxAUW8YREuhiMQoQCKhQlFBsJpP5JAAUaBRQ1FIQF5t5OHwcSDwgcA', 'A8MXAAPFJwCDxTcAA8ZHAIPGVwADx2cAk4cBwiOAVwCjgAcAI4FnAKOBpwAjgrcAo4LHACOD1wCjg+cA', 'goADx0HFE0X1/2mPI4rhxCOG4cKTh8HCo4AHACOBBwCjgQcAgoBxEQVFBsDZPwlFyT+CQBFFEQHptwPH', 'QcVhEQbCSY8jiuHEIsAjhuHCk4fBwqOABwAqhDdVBwAjgQcAEwUFMKOBBwDdMiKFWT8CRJJAN7UDABMF', 'BZghAcm6YRETBjEAkwUhAAbCIwEBAPU8IcEDRzEAk4bBxBnLg8cGABNH9//5jyOA9gCSQCEBObeDRiEA', 'k4fBxBOHZwADxhcAYxTWAKOABwCFB+OZ5/7xv5JAIQGCgGEREwYxAJMFIQAGwiMBAQBVNB3Ng0YxABOH', 'wcSJyoNHBwDdjiMA1wCSQCEBbb2Th8HEgUYZRoPFFwCZ5YNHIQA2l6MA9wDNt4UGhQfjlcb+kkAhAYKA', 'QRETB/X7IsQGxibCE3f3D+VGKoRj+OYEgUeNZhOHhvY+lwMHBwA564PEgcSBRyKFPsClPzelDgATBQVg', '7/B/jiKFAT+CR4nHEwUQCLHIsT8iRLJAkkQ3pQ4AEwUFYEEBb/A/jBMEBQITdPQPg8SBxBMFEAid4BU/', 'hUdVvxN39w9jGeQADWcTBwf4upcDxAcA8b+FB5P39w9Rt2U9podBv009fbf9V2MT9QABoBN39QCNZwoH', 'k4eH8LqXnENRERGBE/Y1AD7AIsQmwj2JhUeyhmML9QSJR2MB9QaBRxnpNxcCQBxPk+dHABzPtxcBQJOH', 'B4AT14VAE3f3By3DNxMCQAMlgwF9FxNlFQAjLKMAaUVjZuUEDWUTBcWzCgcqlwhDNwcBQAKFNxcCQBxP', 'k+cHARzPtxcBQHW/NxcCQBxPk+cHAhzPtxcBQJOHB0Bdt0hDNwMABwUDM2VlAEjDE9UlQA2JYw4GIAlG', 'YUdjC8UADUZxR2MHxQAFRlFHYwPFAEFHE3YHAQNTAQCTcvcAGcKz4tIAk3bzD7HCiEOBRoVEEwSAApMD', 'gASCRTOW1ADxjWMRtgJjHIce0MuTlSYAPUYzFrYAE0b2/2mOs5WyADPlxQCFBiFG45nG/IjDkwbwD2P1', 'ZgTMQwFGBUO9QxMEgAQhRYJEkwaGALMW0wD1jGOSlgKTBIACYxeXGtTLkxQmALOWkwCTxvb/7Y6zlJIA', 's+XUAAUG4xem/MzDIkSSRDEBgoBIQ3mZNwMABzm/SEM3A8D/dRMzdWUANwMABwkDKbdIQzcDQAfdv0hD', 'NwPA/3UTM3VlAMm/SEM3A+D/bRMzdWUANwMABxEDxbVIQzcD4P9tEzN1ZQA3AyAH+bVIQzcDIAfVtzcD', '4P9IQ20T0bdIQzcDAAcTAwMEE3X183W1SEM3AwAHEwMDCBN19fNxvTcDAAdIQxMDAwxBvUhDE3X18523', 'SEM3AwAHEwMDEBN19c+lvUhDNwMABxMDAyATdfXPpbU3AwAHSEMTAwMwsb1IQxN19c8Nv0hDN4MAB7G1', 'SENhc30TsbdIQzcDAgc1vUhDAXPFv0hDNwMEBz21SEM3A/z/xbdIQzcDgAc5vUhDNwOA/8G/SEODIkcA', 'NwMA+X0TM3VlADPzYgAjImcANwMABOW7AyNHAIMiRwA3BQD5fRUzc6MAM/WiAEjDIyJnAMWzBUdjAuUC', 'CUdjB+UAAUcJzRMHgAIRqJP1BQNBR+Oa5f4TB4AEEaARR4FG4bvjF3fgkMshteMch+SUy4m9AREGziLM', 'JsrFRy6DY+GnBI1nCgWTh0fjPpUAQX1WYwzEFJNWJACTh4HFk/bGA7aXnEOTcvQAk4SBxbPXVwCFi7nP', 'DWeTBYfTEweH0y2ok3cFDBMHAAxjkOcSkwdwDGPspxANZxN19QMKBRMHx+cqlxhDjWeTh0fjCge6l4BD', 'eb9jBqQMsQWIQeMcxf62lJhAhUezl1cAk8f3//mPnMCFR41FYwfzAIlHkUVjE/MA4UUihWJE8kDSRAVh', 'BbljEcQITEM3NgFAEwYGwAFHY5LFCJOFwcMKBy6XGEMThsHDXdcYQ03XCE+3NQFAk4UFwGMXtQY3FQJA', 'HE39dZOF9X/tjxzNgUeKB7KXI6AHACMqBwCTBUcIkwdHA+OK9fbBFZhFZd8uhQ1GNsgaxj7EFsIuwAKX', 'gkWSQqJHMkPCRvG/MQcQQ+MdtvZBZ30XWbf9Vc2/NwYAQD6H443F9vW3twUAQGMYtQA3FQJATE35mUzN', 'Wb/BZ/0XQb/yQGJE0kQFYYKAMRE+wLdHAUA6wgPXB4AuyDLGNsQTd4cCHcuThweAg9ZHAIPHUcQDx0HE', 'hQfCBpP39w/BgmON5wCDxVHEE4fB3pP29g8ulyMA1wCjgvHEwkUyRqJGEkeCR1EBcwAgMAOlwcMBxREF', 'b/AvnoKAA6XBwwHFEQVv8C+hgoBhESLAE4TBw0hABsIZyREF7/Dvm0hAAkSSQBEFIQFv8O+ekkACRCEB', 'goADo0HDg6OBwxMFEwAzNmUAswd2ACOqocIjrPHCt/cA4COiBwCCgEERIsQmwgbGoUQFRLN3hQCVwxMX', 'BAFBg4FHhUZjFNcCDWeOBxMHh/K6l9xDgccqwIKXAkX9FAYE8fiyQCJEkkRBAYKAhQcFg5P39w/Bv4KA', 'AaCX8f8fk4FhJhOBQUAJZRMFBYhzEAUwjUYX9f//EwUl5VWNcxBVMBOFQcGThcHuAUZjVrUAEMERBeNO', 'tf4XJQAAEwWl3JOFQcAThkHBY4jFABRBlMERBZEF45rF/u/wD5u39wDgFUeYw4Vnk4cnPXOQFzRzACAw', 'cyUQNO/wj59zJQAw7/APn3MlMDTv8I+ecyUgNO/wD563BwDgk4dHD5hDE3cHCG3/BWcTB1eomMO3BwDg', 'k4dHD5hDE3cHCG3/N7eqqhMHN6iYwwGgNxcCQBxHtwaAANWPHMcqlqqHY5PHAIKAI4C3AIUH1b9xERlG', 'gUUThdHEBsAjhgHE+T/v8O/zo4QBxCOEAcTv8M/5gkAjkwHEEQGCgIFHYxP2AIKAM4f1AINGBwAzB/UA', 'hQcjANcA5be3JwJABUeYw7cXAkA3BwgBI6IHABMHFwiYwzcHnwCYx5hDkxZnAOPdBv7YQ7cWAkBxmxNn', 'JwDYwyFH3EKxi+Oe5/63BwDgI6wHDhMHAAgjqucOgoBRESbAg8dBwQbEIsLF44PHgcKZ62E/7/AvlLf3', 'AOAjpAcAhUcjhPHCtxYBQJxCNwfx/30X+Y83BwIA2Y+cwkFH2MoThAZAHED9dpOG9g/1j5PnByAcwDFl', 'kUdcyBMFBbjv8G+OI64BxrcWAkCcTkFHk+cXApzOHEC3FvD//Rb1j7eGCADVjxzAkwYAMLcHAUCUx5OH', 'B0CYw9jHt+cA4DcHEAAjoOcQhUcjivHAokASRIJEMQGCgBMBQe8jIoEQg8eBwiMkERAjIJEQmevFNe/w', 'r4i39wDgI6QHAIVHI4TxwgU3GUaBRROF0cQjhgHElTUBPyOKAcQpNzfluAUTBQWA7/BvhIU1kwcwBUgY', 'PtoC3O/wj8+Th8HEPsSDx6HCle+Dx2HFweuDx5HEieeDx0HFnYvl1zFlEwUFuO/wz4CD12HEhQfCB8GD', 'I5PxxAVnEwd3OON09/w5Ncm3g8WRwv1GkwcAAmPmtgCDx5HCk/f3DwFHSAhjRfcCI4UBwtXTI5MBxINH', 'QQEFR+OJ5/iTBgACY5TXBolFIUXv8A/Qvb+ThgHQupYDwwYAswblAAUHI4BmAMm3g8cBw73XA8dRxIPH', 'QcTjAvf2kwdABT7atzcMAALck4cXUIPGccWZwv0X5f9IGO/wb8I31QgAEwUFoCOIAcLv4F/1Bb+TBfAC', 'Y5e3AJUzAUaBRQFFHaiThgf6k/b2DxFGg0RRAQNEYQFjatYukwYABmOd1wiTh/T/k/f3D5MG8ANj+PYA', 'AUaBRQVF7/AvwOG9E5YUACaWgUVIGBEztwcCAYUHE4QB0hMGwAxMGBOFAdK+3yMckQ4jHQEODTM3FgJA', 'HE6FZsEG1Y8czrcWAUCTBwAE3MqcQjcGAPF9FvGPNwYAA9GPnMK3NgFA9XcjkAYAk4dHtSOQ9gC39wDg', 'nEcFRyMg9AyjiuHEmbcDx1HFPdsTBzAGY4XnEBMHQAZjjOciEwcgBmOO5waTB/T/k/f3DyFH42n39JOG', 'AdKD1kYMs4eEABOHAdLjz/byk5cUAKaXVAi6l4FFM4a0AANVRwxCBkGCY3emAgNGhwyDwjYAA8NGAD6W', 'IwBWAANGlwwDxVYAPpYjAGYAA0anDD6WIwCmAIUFE/b1D40GjQfjbob6Rb2ThwHSA9dHDBOGAdLj3OTs', 'g0dxAYNGgQE6hcIHogbVj4NGkQHVj6aGGcAzhYQAuoVjc+UAqoUTlxQAwgUml8GBMpcT0wcBk9KHAOPy', 'tuYDVUYMY/GmAgNFhgw6lSMAZQADRZYMOpUjAFUAA0WmDDqVIwD1AIUGwgbBgg0H+beThwHSg6YHDD7A', 'kWc39gDgk4f3gxhGFY/j/uf+gkeD10cME5cXALqXwgfBgz7C8ycAMJP3d/dzkAcwAUXv4F+yAUXv4P+x', 'NzcBQINXhwCJi+3ftxYBQJxCNwcA8X0X+Y83BwAL2Y+cwoJGkkeh7wFF7+Afrzc3AUCDV4cAiYvt3zcX', 'AUCTBwAEXMscQ7cGAPH9FvWPtwYAA9WPHMM3NwFAg1eHAJP3Bwjl//MnADCT54cIc5AHMLf3AOCcRwJH', 'IyD3DL2zgkeDxAYAg9VnDInJJoU2xu/g/42yRiGFk3T1DxPXZAAThMHABgcilwNVBwA2xu/g/6YT1zQA', 'GYsilwNVBwDv4P+lE9cUABmLIpcDVQcA7+D/pBP1NAAGBSqUA1UEAO/g/6OSR7JG/RfCB8GDhQY+wh2/', 'hQQjk5He1bkTB/ADY3n3GCIERYyThwf8QgST9/cPIUdBhONn99ANZ4oHEweHurqXnEOCh4NEgQGDR3EB', 'ogTdjMIEk1f0QMGEM0X0ABPX9EAdjbPH5ACZj8IHQgXBg0GBY1P1AD6FkwXwBxMF5Qfv4D+DqUcqhmNT', '9QA+hqaFIoXv4J/8nbniBOGEk9d0QBPE9P99hL2MnYwJiH0Uk/T0D4FH49yXxCKGgUUBRT7A7+A/9DdV', 'BwATBQUw7+BfuIJHhQfFtyaF7/BPljf1KwATBQUg7+DftiaF7/AvlTm5g0SBAYNHcQE3pQ4AogTdjINH', 'kQETBQVgwgQ+wAPHQcWCRsGEVY8jiuHEI4bhwpOHwcKjgAcAI4EHAKOBBwDv4D+yk1f0QDNF9AAT1/RA', 'HY2zx+QAmY/CB0IFwYNBgWNT9QA+hZMF8AcTBeUH7+Bv9alHKoZjU/UAPoamhSKF7+Df7jelDgATBQVg', '7+B/rQJF7/BPiGG2A8dBxUWPI4rhxCOG4cKTh8HCo4AHACOBBwCjgQcApbYmheG/7/Dvh7m+Y/j1CJOH', 'B/2T9/cP42P2uA1nigcTB8e8upecQ4KHowkBAhMEYQEDRQQA4wkFsu/wD5UFBM2/JoXv8G+UBbYmhe/w', 'j46FR6OE8cST9LQPEwcQCOOV5LAjhPHECbYmhe/wL4eT9LQPkwcQCOOZ9K4jhAHE7bSiRxlGgUUjgAcA', 'E4XRxO/wv4Lv4J/4o4QBxMW3E4eH/RN39w+JRmPu5hgTB4ACY5DnCgNHYQGDR1EBg0WBASIHXY+DR3EB', '4gXCB9mP3Y3jiAWstxYCQJxOEWcTBwcC2Y+czrcXAUCThwdAmEO3BhDw/RZ1j7cGoAhVj5jD2Ec3ddwC', 'EwUFwBNnBwTYx+/gr+BCBbdHAUBBgQlnI5SngBMHxwIjlueAk4cHgIPXRwA35wDgwgfBgyMY8QCDVwEB', 'hUcjIvcQI4vxxCOI8cIxvAPHYcXjBgekEweQAmOf5wJ5R6aHY3OXALqHt0YBQBP39w9QCIFHk4YGgOMI', '954DRSYAg9UGAJP1BQjl3YUHI5KmAJP39w8FBs239UcT9vQPY/SXABP29w9UGAFHtoQTBBcAE3T0D2ME', '5gSDwlHEA8NBxGOOYgKDwlHEA8NBxAFHY4JiAgPDQcQTh8HeGpcDRwcAA8NBxBN39w8FAxNz8w8jgmHE', 'o4DmAIUGIodNvyMK4QIFRyOI4cKBRzMH9EATdvcPlUYTd/cPY/TmABP29g+zhfQACUUywj7A7+D/14JH', 'EkY+lpN39g/j6Yf8AUaBRQ1FlbITB1ACY5LnHp1H4+mXlIPHYcWBy5OHtP+T9/cPBUfjf/eSkUfjjPSS', 'nUfjifSSjWaThsbnigS2lJxARUYT9/cPY2vmAo1mE/UHcJMXJwATh0bjPpcYQ1mN/VdjDvVKBWcjGQEA', 'aY89y4VnhQdj6KcGYw31BgGgE/YHDJMFAAwBRWMctkgTBnAMY2jmSBP29wMKBrKWlEINZxMHR+OKBjaX', 'E/UHcBxDXY1Fv2MT1QLAQ41nk4fH6f1WhENjhdQAYxSVAoRHvYD9iKVHY/6XAgGgsQeUQ+ObxvwBRNm/', 'jWeTh8fpfVb9t7EHwb8joqHAoUS3FgJAnE43JAFAEwQEQJPnByCczgmoI6KhwLcnAUCThwdA4w/0/Bnr', 'jWeTh8fp/VbBoGMe5QqMR+/gX+y3FgJA3EJBdxMH93/5jzFn2Y/cwlxANwfx/xMH9+/5j1zAHEQ39/H/', 'EwfXf/mPNwcOANmPHMRcVDcHEP99F/mPXNQjIAQAHEQTlxQAJpeT5xcAHMQUSJ1Hs5fnANWPHMhcWDcH', 'UACBm92MRNgcRNmPHMQcQImL9d98RMIHwYMjGfEAHET5mxzEtycBQJOHB0BjHPQAtxcCQNhHE2cHINjH', '2EcTd/ff2McDVSEBQgVBgTWusQeYQ+MQ1/QBoCaFPsDv4M/HYwYF9oJHGUeTh/f9k/f3D2Nu9/QNZ4oH', 'EwcHvrqXnEOChyaF7+DPtoFFEcSJR4VFYxP0AKKFJoXv8K+Nb/Cv77M1gAAmhe/gr+hv8M/uJoXv4C/v', 'QgWFRUGBb/Av57FHY+aX8IVnk4dXBrPXlwCFi2OOB+6DRYEBg0dxAaIF3Y1jhgXuN3XcAqIFEwUFwO/g', 'b6WTB/X/QWdj5OcAkwf3/8IHCUfBg2OQ5AgjlPHAtwYAQAPXBgAFixnDI5T2ArcXAkDYTxNnFwDYz5hP', 'E2cHAZjPNxcBQBxDwZuT57cAHMMD14HAtwcAQCOU5wITB/API5bnAsDfA9fHAUIHQYMTd/f4E2cHBiOe', '5wAD1wcCE2cHECOQ5wID1wcAE2cXACOQ5wBv8E/hI5XxwDc3AUCDVgfAEwcHwIWKmcIjFPcCMUdja5fe', 'DWcTB8e/igS6lJhAAoc3FgJAGE6FZpOGRoBVj7cWAUAYzpOGBoCYQhN39/ATZwcLmMI3NwFAIxT3wpMH', '8A8jFvfCEwcHwADfg1eHAeV2/Rb1j5lm1Y8jHPcAg1cHApPnBwEjEPcCg1dHBKFm1Y8jEvcEg1cHAJPn', 'FwAjEPcAb/BP1zcWAkAYToVmk4YGgVWPGM43FgFAGELFdv0WdY+tZlWPGMI3NwFAIxT3wpMH8A8jFvfC', 'EwcHwEDfg1fHAcIHwYOT9/f4k+cHBiMe9wCDVwcCk+cHEHG3NxYCQBhOhWaThgaBVY8YzjcWAUAYQrcG', '8f/9FnWPtwYLAFWPGMI3NwFAIxT3wpMH8A8jFvfCEwcHwCDDg1fHAeV2/Rb1j5lm1Y8jHvcAg1cHAoVm', '1Y8VvzcWAkAYToVmk4YGglWPtxYBQBjOk4YGQJhCfXYTBvYPcY8FZhMGBrBRj5jCNzcBQCMU98KTB/AP', 'Ixb3whMHB8BA24NXhwHCB8GDk/f3+JPnBwYjHPcAg1cHApPnFwDRvSKF7+AvmmMJBcgmhe/gD4sihe/g', 'r4omhYVF7+Bf4oFFIoXv4N/hhUUmhe/gL70xZRMFBbjv4C+3JoWBRb1k7+Dvu5OEBKYihe/gb8IF5f0U', '/fgBRYlFb/Avujf3AOAIRx2NtwcwAON29f6TBQAD79A/+k2xt/cA4JxHtyQGAJOEBKgihT7A7+CPvoJH', 'edX9FO34wbchESLIJsaTF1YABsq6hBDDPpcUUzKE0ESTthYAswbQQJP2hgcJR5OGtgRjFuYENoU+wjbA', 'dSs3BmdFNycCQBMGNhIQ1zeW780TBraaENcRZlDHEwYACBDLNxYCQFhStwUAAZJHTY+CRljSN/cA4DcG', 'AIAjKMfQppecV8GPvc+FR2MT9ASDx8HCE4TBwgFGIwTxAINHFACRRSgAowTxAINHJAAjBfEAg0c0AKMF', '8QCBK6MABAAjAQQAowEEANJAQkSyRGEBgoCJR2Mb9AABRqFFE4UBwkJE0kCyRGEBDaONR2MT9AKDx3HF', 'mc8BRqFFE4WBwTEjo4sBxNG33EzMVI4HnY1jSLAAQkTSQLJENoVhAcWhIUdjU7cAuoWIXAFGPpVVvxxD', 'E5VXADqVAyNFAmMUwwQTMxMAIyJlAvUWkecQR2nuDUZjedYCUEdFyp3rkEG3FzSqk4fXL2MY9gLcQTfW', '3QATBrbLogehg2OfxwCdR1zPiUdcx5MGIA0JRoFFAUWlqCMmBwDFvyMmBwCDx1HB/dMDx3HBg8dhwXER', 'IsAdj5N39w+T8vYPE3f3D2P04gCT9/YPAUdjRPcEA8dhwbqXk/f3DyOL8cADx2HBg8dxwWNt9wCjigHA', 'g8dxwZP39w+jhPHCBUcjheHCAkSTBiANCUaBRQFFEQEZocnbrb+DwmHBs4blAAPEBgC6kpOGAdCWliOA', 'hgAFB3m/g9dFAIPWJQATBgBJwgcz5dcAg9YFAIPXZQAjLgcAIywHAiMkBwIjJgcCIyQHAIWCY5fGApMG', '0D9jFNUAhUZUxxMHAAJjU/cAuoeT9/cPo4vxwCOLAcAFR6OK4cABtxMGAA1jnMYAk4aBwRTfXNehRmPT', '9gC2h1zX1bUTBgA0Y53GAo1mk4aG3JOFxgY+g5BCYxCmAtBCEN8DxoYAkxIGAZPSAgFj81cAGoZCBkGC', 'UNexBuOetvxdtZMHACjjkPbqSMNpvROHAdKTBwAEIyL3DLcHAgGFBxMGAAyBRROFAdIjJPcMb+Af4gAA', 'XXEqwD7KtxcBQJOHB0CIR2GJLsIyxDbGOsgmzrcFAUCThUVBkEFhimMFBh4S2DcyAUATAoLFjEfhiWMK', 'BSSIR2GJYxu1AohHYYljF7UCiEdhiWMTtQKIR2GJYx+1AIhHYYljG7UAiEdhiWMXtQCIR2GJYxO1AAmg', 'IswBRhbQGtIjIAIAiEdhiWMPBRYtjamNCaAJyQmggEdhiC2MEeAJoMW3AQAe1AbaoUQZRAEAAQDBZv0W', 'KWcFB5MD8QOTAgAIAQABACMgAgCIR2GJYw0FEi2NqY0BABM1FQAGBkmOfRVJjB2IfRT9FOH0kwQABhN1', 'xgAJxVFH+UYTAAAAI4DDAJODEwAjIAIAiEdhiS2NDcWpjQmgGUS9yROV9gF9hYWCeY2pjgWC/RQT9XQA', 'YdkBAAEAAQDh+MGofRQT9RYAfRV5jYWCqY4FghNmBggRyP0UE/V0AEXVAQABAAEAxfRloP0UE/V0AAnl', 'I4DDAJODEwAjIAIAiEdhiRHJLY2pjUHFGUQBAA1FfRV9/a38E/V0AD3pkwXxA4ghhQWXAAAAk4DABpMH', 'VftCUhOHQcbFy4XqkiETdfYHHYI9ihFEY3WGBAHFQCNjEaQEk4dH/N3PxRdjlAcAb/CfsokXyc8toC1k', 'BQSBjo3is4azQIUGk4eH+AFGY5QHAG/wn8LFFwVGY5QHAG/w38FiRPJEglISU6JT0lC3BwFAk4dHQYhD', 'E3V1DhnJBtwW3prAnsLv4H+slkMGQ/JS4lDyREJSIkayRkJHkkUJoLcHAUCTh0dBEwVwD4jDAkXSR2Fh', 'cwAgMBBDFgY6lnEGSEKFRS2NSMIIQgUFCMJRvxDDhUUMxxYGOpYM0oFFTM4M3kzSvb8Qo62/N/UA4CEF', 'E4dBxgxLEEEQyw2OUMuxZZOFBbgNjoVnk4cH+uNT9vj9d5OHBwbjTvb2DE+ylQzPrdk3FwJACEMTVjUA', 'fYqTB3DwfY2zBbBAE9aVQEEGDgZRjQjDubcBAKqGFwUAABMFpROJRS6GQREiwCbCtxcBQJOHB0CYQ7cU', '8P/9FGWPtyQCAEWPtwQQAKEEhMuYwzcDGABhAxLEngYT5AYEgUIJ5qlihQJBZn0WjgWugzcyAUATAoLF', 'GUe9RRGgAQCihgWAhYp9F4Hms8RkABlHhMv9FZHFjUb9Fv3+AQDNt56FrcX9FWOUAgBBZn0WAQAAIQUF', 'ooaFioHOBYCTdhYA/Raz9lYABYI1jn0XJc8pqAWAkxb2Af2Gs8RkAITLGUcFgrP2VgA1joHJk/Z1AP0V', '4dIJoMG3AQBjigIAk9KCAJ1F44kC+hNE9v9tt41G/Rb9/rcEGACEy6FG/Rb9/rcECADBBITLhEO31vz/', '/Rb1jLdGBADVjITDAkSSRCJCQQGCgAEAkUb9Fv3+s8RkABlHAQABAITLSb8AAAAAAAAAABQDVwBFAEIA', 'SABJAEQAMAAwADAAAAAAADADVQBJAEEAUABkAHUAaQBuAG8AIABLAEIARAArAE0AbwB1AHMAZQArAFcA', 'ZQBiAAAAAAAKA1UASQBBAFAAAAAEAwkEjAEAALIBAAAsAgAAsgEAALIBAAC0AQAA3AEAALIBAACyAQAA', 'sgEAALIBAACyAQAAAgIAANoGAADcBQAA4gUAAOoGAAB+BgAAfgYAAH4GAAB+BgAAfgYAAH4GAAB+BgAA', 'fgYAAH4GAAB+BgAAfgYAAH4GAAB+BgAAJAYAADYGAAA8BgAAQgYAAEgGAABOBgAAVAYAAFoGAABgBgAA', 'ZgYAAGwGAAByBgAAeAYAADAGAAB+BgAAfgYAAOgFAAD0BQAAAAYAAO4FAAD6BQAABgYAAAwGAAASBgAA', 'GAYAAB4GAAAqBgAAHAcAANQHAAAwBwAAPAcAAEgHAABgBwAA2gcAAHgHAACEBwAAbAcAAJgHAADyBwAA', 'kgcAAP4HAAAKCAAAEAgAABAIAAAQCAAAEAgAABAIAAAQCAAAEAgAABAIAAAQCAAAEAgAAMgHAADOBwAA', '7AcAAJ4HAAD4BwAABAgAACYHAAAQCAAAEAgAABAIAAAQCAAAEAgAABAIAAAQCAAAEAgAABAIAAAQCAAA', 'EAgAABAIAAAQCAAAEAgAABAIAAAQCAAAEAgAABAIAAAQCAAAEAgAABAIAAAQCAAAEAgAABAIAAAQCAAA', 'EAgAAKoHAADCBwAAtgcAAFQHAACMBwAA5gcAABAIAAAQCAAAEAgAABAIAAAQCAAAEAgAABAIAAAQCAAA', 'EAgAABAIAAAQCAAAEAgAABAIAAAQCAAAEAgAABAIAAAQCAAAEAgAABAIAAAQCAAAEAgAABAIAAAQCAAA', 'EAgAABAIAAAQCAAApAcAALwHAACwBwAA4AcAAI4MAABwDQAAeg0AAI4NAACWDQAApA0AALgNAADKDQAA', '0g0AANwNAADsDQAA/A0AAAgOAAAQDgAAIA4AADAOAAA8DgAARA4AAEwOAABUDgAAXA4AAGIOAABqDgAA', 'cg4AAHoOAACCDgAAoA4AAFgYAACqGAAA+hgAAJgZAABUFQAAuBkAALwZAADoGAAAAhkAAOAZAAD4GQAA', 'ABoAAB4aAAA2GgAACh4AACgeAAA2HgAARh4AAFQVAABGHgAAvCAAADofAAAeFQAAph4AAB4VAAAeFQAA', 'rh8AAAQgAAAeFQAAHhUAAB4VAAAeFQAAHhUAAFwgAAAGAP8JAaEBdQiVCAkCgQJ1CJUgCQOxAsAFAQkG', 'oQF1AZUIBQcZ4CnnFQAlAYEClQF1CIEDlQV1AQUIGQEpBZEClQF1A5EDlQd1CJEDlQZ1CBUAJacFBxkA', 'KaeBAMAAAAAFAQkCoQEJAaEABQkZASkDFQAlAZUDdQGBApUBdQWBAwUBCTAJMQk4FYElf3UIlQOBBsDA', 'CQJUAAMBAIBkCQQAAAEDAQIACSEQAQABIjQABwWBAwQACgkEAQABAwEBAAkhEAEAASJFAAcFggMIAAoJ', 'BAIAAQMAAAAJIRABAAEiGAAHBYMDCAAKEgEQAQAAAAgJEgTQAQABAgMBAAAACAFAABABQAAUAUAkAAAA', 'AAAAQAuRAAAjAAAAAAAAQAsRAQAQAAAAAAAAQAuRAQAnAAAAAAAAQAsRAgAiAAAAACwBQAuNAAABAAAA', 'ACwBQAsNAQATAAAAACwBQAuNAQAUAAAAACwBQAsNAgAgAAAAACwBQAuNAAACAAAAACwBQAsNAQAhAAAA', 'ACwBQAuNAQD/////AAAAAAAAAAAAAQAAGC0AABIAAAAAAgAAxCwAAFQAAAAAIgAAkCwAADQAAAAAIgEA', 'SCwAAEUAAAAAIgIAMCwAABgAAAAAAwAA3CgAAAQAAAABAwkE0CgAAAoAAAACAwkEnCgAADAAAAADAwkE', 'hCgAABQAAAABAAAAAgAAABAAAAARAAAAEgAAABMAAAAUAAAAFQAAABYAAAAXAAAAIAAAACEAAAAiAAAA', 'IwAAACQAAAAlAAAAJgAAACcAAAABAAAAAAAAAAYAAAAMAAAADQAAAA8AAAAQAAAADgAAAAIAAAAAJAFA', 'AAAAAAEAAAAAJAFAAIAAABQAAAAAJAFAAAABACIAAAAAJAFAAIABACMAAAAAJAFAAAACACUAAAAAJAFA', 'AIACACYAAAAAJAFAAAADACQAAAAAJAFAAIADAP////8AAAAAAAAAAAEAAAACAAAABAAAAAgAAAAQAAAA', 'IAAAAEAAAACAAAAAFAAAAAAAAAAUAAAAAAAAABQAAAAAAAAAFAAAAAAAAAAUAAAAAAAAABQAAAAAAAAA', 'FAAAAAAAAAAUAAAAAAAAACFAIyQlXiYqKClfK3t9fDoifjw+PwAAADEyMzQ1Njc4OTAtPVtdXDsnYCwu', 'LwAAAC4kAAD/////ugC6AMDA+MDA+Pj4'].join('');
+
+/** @type {number} 元の .bin の大きさ (バイト)。復号できたかの確認に使う */
+var SKETCH_BIN_SIZE = 12204;
+
+/**
+ * この .bin が名乗るプロトコル番号 (.ino の PROTOCOL_VERSION)。
+ *
+ * uiapduinoProcessor.js の PROTOCOL_VERSION と食い違っていたら、
+ * .bin を作り直し忘れている。書き込みブロックはその場合に焼かずに止まる。
+ * @type {number}
+ */
+var SKETCH_BIN_PROTOCOL_VERSION = 8;
+
 function _createForOfIteratorHelper(r, e) { var t = "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"]; if (!t) { if (Array.isArray(r) || (t = _unsupportedIterableToArray(r)) || e) { t && (r = t); var _n = 0, F = function F() {}; return { s: F, n: function n() { return _n >= r.length ? { done: true } : { done: false, value: r[_n++] }; }, e: function e(r) { throw r; }, f: F }; } throw new TypeError("Invalid attempt to iterate non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); } var o, a = true, u = false; return { s: function s() { t = t.call(r); }, n: function n() { var r = t.next(); return a = r.done, r; }, e: function e(r) { u = true, o = r; }, f: function f() { try { a || null == t.return || t.return(); } finally { if (u) throw o; } } }; }
 function _unsupportedIterableToArray(r, a) { if (r) { if ("string" == typeof r) return _arrayLikeToArray(r, a); var t = {}.toString.call(r).slice(8, -1); return "Object" === t && r.constructor && (t = r.constructor.name), "Map" === t || "Set" === t ? Array.from(r) : "Arguments" === t || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(t) ? _arrayLikeToArray(r, a) : void 0; } }
 function _arrayLikeToArray(r, a) { (null == a || a > r.length) && (a = r.length); for (var e = 0, n = Array(a); e < a; e++) n[e] = r[e]; return n; }
@@ -4373,6 +5300,20 @@ var keyboardIconURI = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAABQCAY
  */
 // eslint-disable-next-line max-len
 var mouseIconURI = 'data:image/png;base64,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';
+/**
+ * 書き込みブロックに表示するアイコン (data URI)。
+ *
+ * 実体は scratch-gui 側の
+ * src/lib/libraries/extensions/uiapduino/SketchWrite.png (80x80, 背景透明) と同じ。
+ * 理由は keyboardIconURI と同じ。
+ *
+ * 「書き込む」と「ようす」の 2 つで同じ絵を使う。ようすは書き込みの最中にしか
+ * 意味を持たないので、隣り合わせで 1 組に見える方がよい。
+ * @type {string}
+ */
+// eslint-disable-next-line max-len
+var flashIconURI = 'data:image/png;base64,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';
+
 /**
  * ブロックパレットのカテゴリ見出しに表示するアイコン (data URI)。
  * ブロック左端と同じ絵でよいので使い回す。
@@ -4715,6 +5656,30 @@ var NEOPIXEL_DEFAULT = {
 var SKETCH_RELEASE_URL = 'https://github.com/tarosay/scratch3-uiapduino/releases/latest';
 
 /**
+ * 書き込みモードの基板 (rv003usb ブートローダ) を選ぶための WebHID フィルタ。
+ *
+ * ⚠ 通常のスケッチが名乗る 1209:D004 とは別のデバイス。
+ *   書き込みモードに入ると D004 は消えて、こちらが現れる。
+ *   だから書き込みブロックは「つながっていること」を前提にできない。
+ * @type {object}
+ */
+var BOOTLOADER_FILTER = {
+  vendorId: 0x1209,
+  productId: 0xB803
+};
+
+/**
+ * 書き込みの後、基板が D004 として戻ってくるのを待つ間隔と回数。
+ *
+ * 再起動と USB の再列挙で 1〜2 秒かかる。10 秒待って現れなければ諦めて、
+ * ステータスボタンから繋ぎ直してもらう。
+ * @type {number}
+ */
+var RECONNECT_INTERVAL_MS = 500;
+/** @type {number} */
+var RECONNECT_TRIES = 20;
+
+/**
  * ブロックの既定ピンについて。
  *
  * CH32V003 では D13 = USB D+ / D14 = USB D- / D17 = RESET で、触ると USB が落ちる。
@@ -4786,6 +5751,82 @@ var message = {
     ja: 'その版に対応した拡張機能を使うか、書き込み直してください',
     'ja-Hira': 'その はんに たいおうした かくちょうきのうを つかうか、かきこみなおしてください',
     en: 'Use the extension for that variant, or reflash the board'
+  },
+  // --- 書き込みブロック -------------------------------------------------
+  //
+  // 進み具合を表す文言は「書き込みの ようす」レポーターが返す。
+  // 割合を出すものは、この文言の後ろに ' 45%' が付く形にしてある
+  // (flashStatus() を参照)。日本語でも英語でも語順が変わらない。
+  // {version} は同梱スケッチのプロトコル番号に置き換わる (_flashBlocks() を参照)。
+  // 番号を出すのは、押す前に「何を焼くのか」が分かるようにするため。
+  // 「合いません、新しいのは 8 です」と言われた人が、この番号と見比べられる。
+  flashSketch: {
+    ja: 'スケッチ (プロトコル {version}) を書き込む',
+    'ja-Hira': 'スケッチ (プロトコル {version}) を かきこむ',
+    en: 'flash the sketch (protocol {version})'
+  },
+  flashStatus: {
+    ja: '書き込みの ようす',
+    'ja-Hira': 'かきこみの ようす',
+    en: 'flashing status'
+  },
+  flashIdle: {
+    ja: 'まだ書き込んでいません',
+    'ja-Hira': 'まだ かきこんで いません',
+    en: 'not started'
+  },
+  flashPreparing: {
+    ja: '準備中',
+    'ja-Hira': 'じゅんびちゅう',
+    en: 'preparing'
+  },
+  flashFinding: {
+    ja: '基板をさがしています',
+    'ja-Hira': 'きばんを さがして います',
+    en: 'looking for the board'
+  },
+  flashWriting: {
+    ja: '書き込み中',
+    'ja-Hira': 'かきこみちゅう',
+    en: 'writing'
+  },
+  flashVerifying: {
+    ja: 'たしかめ中',
+    'ja-Hira': 'たしかめちゅう',
+    en: 'verifying'
+  },
+  flashRebooting: {
+    ja: '再起動中',
+    'ja-Hira': 'さいきどうちゅう',
+    en: 'restarting'
+  },
+  flashDone: {
+    ja: '書き込めました',
+    'ja-Hira': 'かきこめました',
+    en: 'done'
+  },
+  // 書き込みモードの基板が見つからない。利用者がダイアログで選ばなかった場合も
+  // ここに来る。区別できないので、どちらでも読める言い方にしてある。
+  flashNotBootloader: {
+    ja: '基板が書き込みモードになっていません',
+    'ja-Hira': 'きばんが かきこみモードに なって いません',
+    en: 'the board is not in flashing mode'
+  },
+  // requestDevice() がユーザ操作を要求して失敗した。緑の旗から走らせるとこうなる。
+  flashNeedClick: {
+    ja: 'ブロックをクリックしてください',
+    'ja-Hira': 'ブロックを クリックして ください',
+    en: 'click the block to flash'
+  },
+  flashFailed: {
+    ja: '書き込めませんでした',
+    'ja-Hira': 'かきこめませんでした',
+    en: 'flashing failed'
+  },
+  flashBusy: {
+    ja: '書き込み中です',
+    'ja-Hira': 'かきこみちゅう です',
+    en: 'already flashing'
   },
   connect: {
     ja: 'UIAPduino につなぐ',
@@ -5339,6 +6380,35 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
      */
     this._neoBatchDepth = 0;
 
+    /**
+     * 書き込みが走っている間だけ true。二重に走らせないための番人。
+     *
+     * 焼いている途中にもう一度押されると、同じ Flash に 2 本の書き込みが
+     * 重なる。基板が壊れるわけではないが、照合が食い違って両方失敗する。
+     * @type {boolean}
+     */
+    this._flashing = false;
+
+    /**
+     * 「書き込みの ようす」が返すもの。文言のキーと、割合 (要らなければ null)。
+     *
+     * 文字列そのものではなくキーで持つのは、言語を切り替えたときに
+     * 表示中の文言も追従させるため。組み立ては flashStatus() が行う。
+     * @type {{key: string, percent: ?number}}
+     */
+    this._flashState = {
+      key: 'flashIdle',
+      percent: null
+    };
+
+    /**
+     * 復号した同梱スケッチ。初回の書き込みのときだけ作る。
+     *
+     * base64 のままでは焼けないが、12KB の復号を押すたびに繰り返す必要もない。
+     * @type {?Uint8Array}
+     */
+    this._sketchBinCache = null;
+
     // USB が抜かれたら processor から呼ばれる。
     this.processor.onDisconnected = function () {
       return _this._handleDisconnectError();
@@ -5463,6 +6533,31 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
     key: "_getText",
     value: function _getText(key) {
       return message[key][this.locale] || message[key].en;
+    }
+
+    /**
+     * 書き込みブロック 2 つ。パレットの末尾と、スケッチ不一致の説明の両方で使う。
+     *
+     * 同じ定義を 2 か所に書くと、片方だけ直したときに食い違う。
+     * @returns {Array<object>} ブロック定義
+     */
+  }, {
+    key: "_flashBlocks",
+    value: function _flashBlocks() {
+      return [{
+        opcode: 'flashSketch',
+        // 番号は同梱スケッチのものを出す。拡張機能側の PROTOCOL_VERSION では
+        // なく、実際に焼かれるものの番号でなければ意味がない。
+        // (2 つが食い違っていたら flashSketch() が焼かずに止める)
+        text: this._getText('flashSketch').replace('{version}', SKETCH_BIN_PROTOCOL_VERSION),
+        blockType: BlockType.BOOLEAN,
+        blockIconURI: flashIconURI
+      }, {
+        opcode: 'flashStatus',
+        text: this._getText('flashStatus'),
+        blockType: BlockType.REPORTER,
+        blockIconURI: flashIconURI
+      }];
     }
 
     /**
@@ -6161,7 +7256,11 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
           opcode: 'clearQueue',
           text: this._getText('clearQueue'),
           blockType: BlockType.COMMAND
-        }],
+        },
+        // 書き込みは保守のための操作で、作品を作るのに使うものではない。
+        // だから末尾に置く。同じ 2 つを、スケッチが噛み合わないときの
+        // 説明の中にも出す (getInfo() の下の方)。
+        '---'].concat(_toConsumableArray(this._flashBlocks())),
         menus: {
           MODE: {
             acceptReporters: true,
@@ -6315,6 +7414,7 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
       //   消すと「つなぐ」ブロックもボタンも無くなり、やり直せなくなる。
       //   非対応ブラウザと違って、こちらは焼けば直る。
       if (this._sketchProblem) {
+        var _info$blocks;
         var variant = this._sketchProblem.reason === REASON.VARIANT_MISMATCH;
         info.blocks = [this._getText(variant ? 'sketchVariant' : 'sketchOutdated'), this._getText(variant ? 'sketchVariantHow' : 'sketchOutdatedHow'),
         // 焼くべきものを見分けるための番号。基板側の番号は出さない。
@@ -6327,6 +7427,13 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
             text: text
           };
         });
+
+        // 説明だけで終わらせない。ここが「詰まった人が必ず見る場所」なので、
+        // その場で直せるように書き込みブロックを足す。
+        // URL の行は残す。ブロックで書けなかった人の逃げ道が要る。
+        //
+        // 引数もメニューも持たないブロックなので、menus を空にしても出せる。
+        (_info$blocks = info.blocks).push.apply(_info$blocks, ['---'].concat(_toConsumableArray(this._flashBlocks())));
         info.menus = {};
       }
       return info;
@@ -6380,7 +7487,372 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
       // 何もしない
     }
 
-    /** @returns {void} 同上 (入手先の URL) */
+    // --- スケッチの書き込み ----------------------------------------------
+    //
+    // 書き込み先は通常のスケッチ (1209:D004) ではなく、書き込みモードの基板
+    // (1209:B803) の中の rv003usb ブートローダ。焼く中身は拡張機能に同梱してある。
+    //
+    // ⚠ 書き込みモードに入るのは手作業。基板のボタンを押しながら USB を挿す。
+    //   ブロックからは入れられない (スケッチ側に seamless switch が無いため)。
+
+    /**
+     * 「スケッチを書き込む」ブロック。
+     *
+     * 押した本人のスクリプトだけが待つ。ほかのスクリプトは止まらない。
+     *
+     * @returns {Promise<boolean>} 焼けたら true
+     */
+  }, {
+    key: "flashSketch",
+    value: function flashSketch() {
+      var _this5 = this;
+      if (this._flashing) {
+        this._setFlashState('flashBusy', null);
+        return Promise.resolve(false);
+      }
+      this._flashing = true;
+      return this._flashSketch().catch(function (e) {
+        // ここへ来るのは想定外の失敗だけ。想定内は _flashSketch() が
+        // 文言を立てて false を返す。
+        console.error('[uiapduino] flash failed:', e);
+        _this5._setFlashState('flashFailed', null);
+        return false;
+      }).then(function (ok) {
+        _this5._flashing = false;
+        return ok;
+      });
+    }
+
+    /**
+     * 「書き込みの ようす」ブロック。
+     *
+     * 割合を持つ状態のときだけ、文言の後ろに ' 45%' が付く。
+     *
+     * @returns {string} 今の状態を表す文字列
+     */
+  }, {
+    key: "flashStatus",
+    value: function flashStatus() {
+      var _this$_flashState = this._flashState,
+        key = _this$_flashState.key,
+        percent = _this$_flashState.percent;
+      var text = this._getText(key);
+      return percent === null ? text : "".concat(text, " ").concat(percent, "%");
+    }
+
+    /**
+     * 「書き込みの ようす」が返すものを差し替える。
+     *
+     * @param {string} key - message のキー
+     * @param {?number} percent - 割合。要らなければ null
+     * @returns {void}
+     */
+  }, {
+    key: "_setFlashState",
+    value: function _setFlashState(key, percent) {
+      this._flashState = {
+        key: key,
+        percent: percent
+      };
+    }
+
+    /**
+     * flashSketch() の中身。番人は呼び出し側で立ててある。
+     *
+     * @returns {Promise<boolean>} 焼けたら true
+     */
+  }, {
+    key: "_flashSketch",
+    value: (function () {
+      var _flashSketch2 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime.mark(function _callee() {
+        var _this6 = this;
+        var bin, device, ok;
+        return _regeneratorRuntime.wrap(function (_context) {
+          while (1) switch (_context.prev = _context.next) {
+            case 0:
+              this._setFlashState('flashPreparing', null);
+
+              // 同梱スケッチと拡張機能が食い違っていたら、焼いても繋がらない。
+              // 焼いた後に「まだ合いません」と言われるのがいちばん分からないので、
+              // 焼く前に止める。起きるのは .bin を作り直し忘れたときだけ。
+              {
+                _context.next = 1;
+                break;
+              }
+            case 1:
+              bin = this._sketchBin(); // 繋がったままだと、こちらは D004 を掴んでいるつもりで居続ける。
+              // 実際には書き込みモードに入った時点で基板は入れ替わっている。
+              if (!this.processor.isConnected()) {
+                _context.next = 2;
+                break;
+              }
+              _context.next = 2;
+              return this.disconnect();
+            case 2:
+              this._setFlashState('flashFinding', null);
+              _context.next = 3;
+              return this._findBootloader();
+            case 3:
+              device = _context.sent;
+              if (device) {
+                _context.next = 4;
+                break;
+              }
+              return _context.abrupt("return", false);
+            case 4:
+              _context.next = 5;
+              return rv003usb_webflasher(bin, function (status) {
+                return _this6._onFlashProgress(status);
+              }, device);
+            case 5:
+              ok = _context.sent;
+              if (ok) {
+                _context.next = 6;
+                break;
+              }
+              // 中身の理由は rv003usbFlasher が console に出している。
+              this._setFlashState('flashFailed', null);
+              return _context.abrupt("return", false);
+            case 6:
+              this._setFlashState('flashDone', null);
+              _context.next = 7;
+              return this._reconnectAfterFlash();
+            case 7:
+              return _context.abrupt("return", true);
+            case 8:
+            case "end":
+              return _context.stop();
+          }
+        }, _callee, this);
+      }));
+      function _flashSketch() {
+        return _flashSketch2.apply(this, arguments);
+      }
+      return _flashSketch;
+    }()
+    /**
+     * 同梱スケッチを Uint8Array にして返す。初回だけ復号する。
+     *
+     * @returns {Uint8Array} 焼く中身
+     */
+    )
+  }, {
+    key: "_sketchBin",
+    value: function _sketchBin() {
+      if (this._sketchBinCache) return this._sketchBinCache;
+      var raw = atob(SKETCH_BIN_BASE64);
+      var bin = new Uint8Array(raw.length);
+      for (var i = 0; i < raw.length; i++) {
+        bin[i] = raw.charCodeAt(i);
+      }
+      // 生成物が壊れていないかの確認。ここで気づかないと、
+      // 壊れたものを基板へ流し込むことになる。
+      if (bin.length !== SKETCH_BIN_SIZE) {
+        throw new Error("embedded sketch is broken: ".concat(bin.length, " bytes, expected ").concat(SKETCH_BIN_SIZE));
+      }
+      this._sketchBinCache = bin;
+      return bin;
+    }
+
+    /**
+     * 書き込みモードの基板を探す。見つからなければ理由を立てて null を返す。
+     *
+     * 許可済みなら getDevices() で拾える。無ければ requestDevice() を出すが、
+     * これはクリック直後でないと SecurityError になる。
+     *
+     * @returns {Promise<?HIDDevice>} 書き込み先。見つからなければ null
+     */
+  }, {
+    key: "_findBootloader",
+    value: (function () {
+      var _findBootloader2 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime.mark(function _callee2() {
+        var device, granted, picked, _t, _t2;
+        return _regeneratorRuntime.wrap(function (_context2) {
+          while (1) switch (_context2.prev = _context2.next) {
+            case 0:
+              device = null;
+              _context2.prev = 1;
+              _context2.next = 2;
+              return navigator.hid.getDevices();
+            case 2:
+              granted = _context2.sent.filter(function (d) {
+                return d.vendorId === BOOTLOADER_FILTER.vendorId && d.productId === BOOTLOADER_FILTER.productId;
+              });
+              device = granted[0] || null;
+              if (device) {
+                _context2.next = 4;
+                break;
+              }
+              _context2.next = 3;
+              return navigator.hid.requestDevice({
+                filters: [BOOTLOADER_FILTER]
+              });
+            case 3:
+              picked = _context2.sent;
+              device = picked[0] || null;
+            case 4:
+              _context2.next = 6;
+              break;
+            case 5:
+              _context2.prev = 5;
+              _t = _context2["catch"](1);
+              // 緑の旗から走らせるとここへ来る。ブロックを押せば通る。
+              if (_t && _t.name === 'SecurityError') {
+                console.warn('[uiapduino] flashing needs a click:', _t);
+                this._setFlashState('flashNeedClick', null);
+              } else {
+                console.error('[uiapduino] bootloader lookup failed:', _t);
+                this._setFlashState('flashFailed', null);
+              }
+              return _context2.abrupt("return", null);
+            case 6:
+              if (device) {
+                _context2.next = 7;
+                break;
+              }
+              // 書き込みモードに入っていないか、ダイアログで選ばれなかったか。
+              // 呼び出し側からは区別が付かない。
+              console.warn('[uiapduino] bootloader not found (1209:B803)');
+              this._setFlashState('flashNotBootloader', null);
+              return _context2.abrupt("return", null);
+            case 7:
+              if (!device.opened) {
+                _context2.next = 11;
+                break;
+              }
+              _context2.prev = 8;
+              _context2.next = 9;
+              return device.close();
+            case 9:
+              _context2.next = 11;
+              break;
+            case 10:
+              _context2.prev = 10;
+              _t2 = _context2["catch"](8);
+              console.warn('[uiapduino] could not close the bootloader device:', _t2);
+            case 11:
+              return _context2.abrupt("return", device);
+            case 12:
+            case "end":
+              return _context2.stop();
+          }
+        }, _callee2, this, [[1, 5], [8, 10]]);
+      }));
+      function _findBootloader() {
+        return _findBootloader2.apply(this, arguments);
+      }
+      return _findBootloader;
+    }()
+    /**
+     * rv003usbFlasher からの進み具合を「書き込みの ようす」へ移す。
+     *
+     * ⚠ step 4 と 5 の出方には癖がある。あちらは「差分が見つかったか」で
+     *   4 と 5 を切り替えるので、まっさらな基板でも最初の 1 セクタだけは
+     *   5 (たしかめ中) になる。2 周目は全部 5 で終わる。これは正常。
+     *
+     * @param {{step: number, offset: number, size: number}} status - あちらの通知
+     * @returns {void}
+     */
+    )
+  }, {
+    key: "_onFlashProgress",
+    value: function _onFlashProgress(status) {
+      var percent = status.size ? Math.floor(status.offset / status.size * 100) : 0;
+      switch (status.step) {
+        case 1:
+          this._setFlashState('flashFinding', null);
+          break;
+        case 4:
+          this._setFlashState('flashWriting', percent);
+          break;
+        case 5:
+          this._setFlashState('flashVerifying', percent);
+          break;
+        case 6:
+          this._setFlashState('flashRebooting', null);
+          break;
+        case 7:
+          this._setFlashState('flashDone', null);
+          break;
+        default:
+          // 0 (読み込み) / 2 (見張りの停止) / 3 (Flash の解錠)
+          this._setFlashState('flashPreparing', null);
+          break;
+      }
+    }
+
+    /**
+     * 書き込みの後、基板が D004 として戻ってきたら繋ぎ直す。
+     *
+     * ⚠ requestDevice() は呼ばない。ここまで来ると最初のクリックから時間が経って
+     *   いて活性化が切れているうえ、運よく通ってもダイアログが 2 回出る。
+     *   許可済みのものが現れたときだけ繋ぐ。
+     *
+     * 繋がると _setSketchProblem(null) が走り、説明に差し替わっていたパレットが
+     * ブロックへ戻る。「押す → 焼ける → ブロックが戻る」を一続きにするための一手。
+     *
+     * @returns {Promise<void>} 繋いだか、諦めたら resolve
+     */
+  }, {
+    key: "_reconnectAfterFlash",
+    value: (function () {
+      var _reconnectAfterFlash2 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime.mark(function _callee3() {
+        var i, found, _t3;
+        return _regeneratorRuntime.wrap(function (_context3) {
+          while (1) switch (_context3.prev = _context3.next) {
+            case 0:
+              i = 0;
+            case 1:
+              if (!(i < RECONNECT_TRIES)) {
+                _context3.next = 9;
+                break;
+              }
+              _context3.next = 2;
+              return new Promise(function (resolve) {
+                return setTimeout(resolve, RECONNECT_INTERVAL_MS);
+              });
+            case 2:
+              found = false;
+              _context3.prev = 3;
+              _context3.next = 4;
+              return navigator.hid.getDevices();
+            case 4:
+              found = _context3.sent.some(function (d) {
+                return d.vendorId === DEVICE_FILTER.vendorId && d.productId === DEVICE_FILTER.productId;
+              });
+              _context3.next = 6;
+              break;
+            case 5:
+              _context3.prev = 5;
+              _t3 = _context3["catch"](3);
+              console.warn('[uiapduino] could not look for the board after flashing:', _t3);
+              return _context3.abrupt("return");
+            case 6:
+              if (!found) {
+                _context3.next = 8;
+                break;
+              }
+              _context3.next = 7;
+              return this._connectAndNotify(false);
+            case 7:
+              return _context3.abrupt("return");
+            case 8:
+              i++;
+              _context3.next = 1;
+              break;
+            case 9:
+              console.warn('[uiapduino] the board did not come back after flashing');
+            case 10:
+            case "end":
+              return _context3.stop();
+          }
+        }, _callee3, this, [[3, 5]]);
+      }));
+      function _reconnectAfterFlash() {
+        return _reconnectAfterFlash2.apply(this, arguments);
+      }
+      return _reconnectAfterFlash;
+    }() /** @returns {void} 同上 (入手先の URL) */)
   }, {
     key: "sketchProblem3",
     value: function sketchProblem3() {
@@ -6437,14 +7909,14 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
   }, {
     key: "disconnect",
     value: function disconnect() {
-      var _this5 = this;
+      var _this7 = this;
       return this._releaseInput().then(function () {
-        return _this5.processor.disconnect();
+        return _this7.processor.disconnect();
       }).catch(function (e) {
         console.warn('[uiapduino] disconnect failed:', e);
       }).then(function () {
         // 利用者が自分で切ったので、接続喪失の警告は出さない。
-        _this5._emitDisconnected();
+        _this7._emitDisconnected();
       });
     }
 
@@ -6503,15 +7975,15 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
   }, {
     key: "_connectAndNotify",
     value: function _connectAndNotify(fromScan) {
-      var _this6 = this;
+      var _this8 = this;
       return this.processor.connect().then(function (result) {
         if (result.ok) {
           // 焼き直して繋がったら説明を消し、ブロックを戻す
-          _this6._setSketchProblem(null);
+          _this8._setSketchProblem(null);
           // 接続済みの状態で scan() された場合も通知する。
           // 送らないと接続モーダルが「検索中」のまま止まる。
-          if (!_this6._notifiedConnected || fromScan) {
-            _this6._emitConnected();
+          if (!_this8._notifiedConnected || fromScan) {
+            _this8._emitConnected();
           }
         } else {
           console.warn("[uiapduino] connect failed: ".concat(result.reason), result.error || '');
@@ -6519,13 +7991,13 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
           // 「基板が挿さっていない」「選択をキャンセルした」で
           // ブロックを消してしまうと、繋ぐ前に触れなくなる。
           if (result.reason === REASON.PROTOCOL_MISMATCH || result.reason === REASON.HANDSHAKE_NO_RESPONSE || result.reason === REASON.VARIANT_MISMATCH) {
-            _this6._setSketchProblem(result);
+            _this8._setSketchProblem(result);
           }
           if (fromScan) {
             // Scratch GUI 3.29 は検索中の PERIPHERAL_REQUEST_ERROR を
             // 「Scratch Link が入っていない」と解釈して WebHID には無関係な
             // 案内を出すため、失敗の種類によらず「見つかりません」に寄せる。
-            _this6.runtime.emit(_this6.runtime.constructor.PERIPHERAL_SCAN_TIMEOUT);
+            _this8.runtime.emit(_this8.runtime.constructor.PERIPHERAL_SCAN_TIMEOUT);
           }
         }
         return result;
@@ -6685,7 +8157,7 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
   }, {
     key: "_analogRead",
     value: function _analogRead(channel) {
-      var _this7 = this;
+      var _this9 = this;
       // シリアルに取られている間は前回値を返さない。
       //
       // 前回値は「一瞬読めなかった」ための備えで、ここでは事情が違う。
@@ -6693,12 +8165,12 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
       // ように見えるだけで、原因が配線なのか何なのか分からなくなる。
       if (!this._pinAvailable(channel, true)) return Promise.resolve(0);
       return this.processor.request(CMD.ANALOG_READ, [channel]).then(function (value) {
-        _this7._lastAnalog[channel] = value;
+        _this9._lastAnalog[channel] = value;
         return value;
       })
       // 「ピン [ ] の値」は A0-A3 以外の番号も渡せるので、覚えていなければ 0
       .catch(function () {
-        return _this7._lastAnalog[channel] || 0;
+        return _this9._lastAnalog[channel] || 0;
       });
     }
   }, {
@@ -6911,7 +8383,7 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
   }, {
     key: "keyType",
     value: function keyType(args) {
-      var _this8 = this;
+      var _this0 = this;
       var bytes = this._toAsciiBytes(Cast.toString(args.TEXT), 'type');
       if (bytes.length === 0) return Promise.resolve();
       var chain = Promise.resolve();
@@ -6919,7 +8391,7 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
         var chunk = bytes.slice(i, i + KEY_TEXT_CHUNK);
         var more = i + KEY_TEXT_CHUNK < bytes.length ? KEY_TEXT_MORE : 0;
         chain = chain.then(function () {
-          return _this8.processor.request(CMD.KEY_TEXT, [more].concat(_toConsumableArray(chunk)), _this8._typeTimeout(chunk.length));
+          return _this0.processor.request(CMD.KEY_TEXT, [more].concat(_toConsumableArray(chunk)), _this0._typeTimeout(chunk.length));
         });
       };
       for (var i = 0; i < bytes.length; i += KEY_TEXT_CHUNK) {
@@ -7380,7 +8852,7 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
   }, {
     key: "_serialSend",
     value: function _serialSend(text) {
-      var _this9 = this;
+      var _this1 = this;
       if (!this._serialOpen) {
         console.warn('[uiapduino] serial is not started; place the "start at [ ] baud" block first');
         return Promise.resolve();
@@ -7391,7 +8863,7 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
       var _loop2 = function _loop2() {
         var chunk = bytes.slice(i, i + SERIAL_WRITE_CHUNK);
         chain = chain.then(function () {
-          return _this9.processor.request(CMD.SERIAL_WRITE, [chunk.length].concat(_toConsumableArray(chunk)));
+          return _this1.processor.request(CMD.SERIAL_WRITE, [chunk.length].concat(_toConsumableArray(chunk)));
         });
       };
       for (var i = 0; i < bytes.length; i += SERIAL_WRITE_CHUNK) {
@@ -7402,7 +8874,7 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
   }, {
     key: "serialBegin",
     value: function serialBegin(args) {
-      var _this0 = this;
+      var _this10 = this;
       var baud = Math.max(1, Math.round(Cast.toNumber(args.BAUD)) || 0);
       // デコーダは begin のたびに作り直す。前回の途中で切れたバイトを
       // 持ち越すと、開き直した最初の 1 文字が化ける。
@@ -7411,8 +8883,8 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
       });
       this._serialRx = '';
       return this.processor.request(CMD.SERIAL_BEGIN, [baud & 0xFF, baud >> 8 & 0xFF, baud >> 16 & 0xFF, baud >> 24 & 0xFF]).then(function () {
-        _this0._serialOpen = true;
-        _this0._startSerialHatTimer();
+        _this10._serialOpen = true;
+        _this10._startSerialHatTimer();
       }).catch(function () {});
     }
   }, {
@@ -7465,11 +8937,11 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
   }, {
     key: "_pumpSerial",
     value: function _pumpSerial() {
-      var _this1 = this;
+      var _this11 = this;
       if (!this._serialOpen || !this.processor.isConnected()) return Promise.resolve();
       if (this._serialPumping) return this._serialPumping;
       this._serialPumping = this._readSerialUntilEmpty().catch(function () {}).then(function () {
-        _this1._serialPumping = null;
+        _this11._serialPumping = null;
       });
       return this._serialPumping;
     }
@@ -7481,38 +8953,38 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
   }, {
     key: "_readSerialUntilEmpty",
     value: (function () {
-      var _readSerialUntilEmpty2 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime.mark(function _callee() {
+      var _readSerialUntilEmpty2 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime.mark(function _callee4() {
         var i, packet, length;
-        return _regeneratorRuntime.wrap(function (_context) {
-          while (1) switch (_context.prev = _context.next) {
+        return _regeneratorRuntime.wrap(function (_context4) {
+          while (1) switch (_context4.prev = _context4.next) {
             case 0:
               i = 0;
             case 1:
               if (!(i < SERIAL_PUMP_MAX)) {
-                _context.next = 4;
+                _context4.next = 4;
                 break;
               }
-              _context.next = 2;
+              _context4.next = 2;
               return this.processor.request(CMD.SERIAL_READ, [SERIAL_READ_CHUNK], COMMAND_READ_TIMEOUT, true);
             case 2:
-              packet = _context.sent;
+              packet = _context4.sent;
               length = packet[0] || 0;
               if (length > 0) this._appendSerial(packet.slice(1, 1 + length));
               // 満たずに返ってきたら、デバイス側は空になっている
               if (!(length < SERIAL_READ_CHUNK)) {
-                _context.next = 3;
+                _context4.next = 3;
                 break;
               }
-              return _context.abrupt("return");
+              return _context4.abrupt("return");
             case 3:
               i++;
-              _context.next = 1;
+              _context4.next = 1;
               break;
             case 4:
             case "end":
-              return _context.stop();
+              return _context4.stop();
           }
-        }, _callee, this);
+        }, _callee4, this);
       }));
       function _readSerialUntilEmpty() {
         return _readSerialUntilEmpty2.apply(this, arguments);
@@ -7555,11 +9027,11 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
   }, {
     key: "_startSerialHatTimer",
     value: function _startSerialHatTimer() {
-      var _this10 = this;
+      var _this12 = this;
       if (this._serialHatTimer !== null) return;
       if (typeof setInterval !== 'function') return;
       this._serialHatTimer = setInterval(function () {
-        return _this10._fireSerialHats();
+        return _this12._fireSerialHats();
       }, SERIAL_HAT_INTERVAL_MS);
     }
 
@@ -7690,32 +9162,32 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
   }, {
     key: "serialReadLine",
     value: function serialReadLine(args, util) {
-      var _this11 = this;
+      var _this13 = this;
       // モニターは覗くだけ。デバイスも見に行かない
       // (毎フレーム USB の往復が起きて、スクリプトのコマンドを待たせる)。
       if (this._isMonitor(util)) return this._peekUntilTerminator('NEWLINE');
       return this._readSerial(function () {
-        return _this11._takeUntilTerminator('NEWLINE');
+        return _this13._takeUntilTerminator('NEWLINE');
       });
     }
   }, {
     key: "serialReadUntil",
     value: function serialReadUntil(args) {
-      var _this12 = this;
+      var _this14 = this;
       // 引数を持つのでモニターには出ない (チェックボックスが付かない)。
       var kind = this._toTerminatorKind(args.TERMINATOR);
       return this._readSerial(function () {
-        return _this12._takeUntilTerminator(kind);
+        return _this14._takeUntilTerminator(kind);
       });
     }
   }, {
     key: "serialReadText",
     value: function serialReadText(args, util) {
-      var _this13 = this;
+      var _this15 = this;
       if (this._isMonitor(util)) return this._serialRx;
       return this._readSerial(function () {
-        var text = _this13._serialRx;
-        _this13._serialRx = '';
+        var text = _this15._serialRx;
+        _this15._serialRx = '';
         return text;
       });
     }
@@ -7857,7 +9329,7 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
   }, {
     key: "_neoFlush",
     value: function _neoFlush() {
-      var _this14 = this;
+      var _this16 = this;
       if (!this._neoOpen || !this.processor.isConnected()) return Promise.resolve();
       var from = this._neoDirtyFrom;
       var to = Math.min(this._neoDirtyTo, this._neoCount - 1);
@@ -7869,17 +9341,17 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
         // [開始番号, 個数, R, G, B, R, G, B, ...]
         var params = [i, n];
         for (var k = 0; k < n * 3; k++) {
-          params.push(_this14._neoBuf[i * 3 + k]);
+          params.push(_this16._neoBuf[i * 3 + k]);
         }
         chain = chain.then(function () {
-          return _this14.processor.request(CMD.NEO_SET, params);
+          return _this16.processor.request(CMD.NEO_SET, params);
         });
       };
       for (var i = from; i <= to; i += NEOPIXEL_SET_CHUNK) {
         _loop3();
       }
       return chain.then(function () {
-        return _this14.processor.request(CMD.NEO_SHOW);
+        return _this16.processor.request(CMD.NEO_SHOW);
       }).catch(function () {});
     }
 
@@ -7967,7 +9439,7 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
   }, {
     key: "neoBegin",
     value: function neoBegin(args) {
-      var _this15 = this;
+      var _this17 = this;
       var count = Math.min(NEOPIXEL_MAX_LEDS, Math.max(1, Math.round(Cast.toNumber(args.COUNT)) || 1));
       var percent = Math.min(100, Math.max(0, Math.round(Cast.toNumber(args.BRIGHTNESS))));
       this._neoCount = count;
@@ -7980,27 +9452,27 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
       // 多く出しても光り方は変わらないが、その間ずっと割り込みが止まるので
       // USB が応答できなくなる (uiapduinoProcessor の NEO_BEGIN を参照)。
       return this.processor.request(CMD.NEO_BEGIN, [count]).then(function () {
-        _this15._neoOpen = true;
-        return _this15.processor.request(CMD.NEO_BRIGHTNESS, [Math.round(percent * 255 / 100)]);
+        _this17._neoOpen = true;
+        return _this17.processor.request(CMD.NEO_BRIGHTNESS, [Math.round(percent * 255 / 100)]);
       })
       // 始めた時点で消えていることを保証する。前の作品の絵が残っていると、
       // 「始める」を置いた瞬間に知らない色が出る。
       .then(function () {
-        return _this15.processor.request(CMD.NEO_FILL, [0, 0, 0, 0, 0]);
+        return _this17.processor.request(CMD.NEO_FILL, [0, 0, 0, 0, 0]);
       }).then(function () {
-        return _this15.processor.request(CMD.NEO_SHOW);
+        return _this17.processor.request(CMD.NEO_SHOW);
       }).catch(function () {});
     }
   }, {
     key: "neoBrightness",
     value: function neoBrightness(args) {
-      var _this16 = this;
+      var _this18 = this;
       if (!this._neoReady()) return Promise.resolve();
       var percent = Math.min(100, Math.max(0, Math.round(Cast.toNumber(args.BRIGHTNESS))));
       return this.processor.request(CMD.NEO_BRIGHTNESS, [Math.round(percent * 255 / 100)]).catch(function () {})
       // 明るさは非破壊的なので、色を送り直さなくても SHOW だけで反映される。
       .then(function () {
-        return _this16._neoAutoShow();
+        return _this18._neoAutoShow();
       });
     }
   }, {
