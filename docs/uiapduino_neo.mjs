@@ -9298,8 +9298,10 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
     key: "_neoWrite",
     value: function _neoWrite(index, rgb) {
       var at = index * 3;
-      this._neoBuf[at] = rgb[0];
-      this._neoBuf[at + 1] = rgb[1];
+      // this._neoBuf[at] = rgb[0];
+      // this._neoBuf[at + 1] = rgb[1];
+      this._neoBuf[at] = rgb[1];
+      this._neoBuf[at + 1] = rgb[0];
       this._neoBuf[at + 2] = rgb[2];
     }
 
