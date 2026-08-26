@@ -6164,6 +6164,11 @@ var message = {
     'ja-Hira': 'NeoPixel の [INDEX] ばんの いろ',
     en: 'color of NeoPixel [INDEX]'
   }
+  neochgRGB: {
+    ja: 'NeoPixel の RGB配列を [RGBset] にする',
+    'ja-Hira': 'NeoPixel RGBはいれつを [RGBset] にする',
+    en: 'set RGB array to [RGBset]'
+  }
 };
 
 /**
@@ -7095,6 +7100,16 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
           blockType: BlockType.REPORTER,
           arguments: {
             INDEX: {
+              type: ArgumentType.NUMBER,
+              defaultValue: 1
+            }
+          }
+        }, {
+          opcode: 'neochgRGB',
+          text: this._getText('neochgRGB'),
+          blockType: BlockType.COMMAND,
+          arguments: {
+            RGBset: {
               type: ArgumentType.NUMBER,
               defaultValue: 1
             }
