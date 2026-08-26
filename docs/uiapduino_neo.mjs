@@ -6165,9 +6165,9 @@ var message = {
     en: 'color of NeoPixel [INDEX]'
   }
   neochgRGB: {
-    ja: 'NeoPixel の RGB配列を [RGBset] にする',
-    'ja-Hira': 'NeoPixel RGBはいれつを [RGBset] にする',
-    en: 'set RGB array to [RGBset]'
+    ja: 'NeoPixel の RGB配列を [INDEX] にする',
+    'ja-Hira': 'NeoPixel RGBはいれつを [INDEX] にする',
+    en: 'set RGB array to [INDEX]'
   }
 };
 
