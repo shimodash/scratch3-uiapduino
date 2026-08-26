@@ -7104,16 +7104,6 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
               defaultValue: 1
             }
           }
-        }, {
-          opcode: 'neochgRGB',
-//          text: this._getText('neochgRGB'),
-          blockType: BlockType.COMMAND,
-          arguments: {
-            RGBset: {
-              type: ArgumentType.NUMBER,
-              defaultValue: 1
-            }
-          }
         }, '---',
         // UIAPduino は HID なのでキーボードとマウスそのものになれる。
         // ここから下のブロックは Scratch ではなく PC 本体を操作する。
