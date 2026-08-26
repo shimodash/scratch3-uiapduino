@@ -7106,7 +7106,7 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
           }
         }, {
           opcode: 'neochgRGB',
-          text: this._getText('neochgRGB'),
+//          text: this._getText('neochgRGB'),
           blockType: BlockType.COMMAND,
           arguments: {
             RGBset: {
