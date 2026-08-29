@@ -6955,6 +6955,17 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
             }
           }
         }, {
+          opcode: 'neoSetFormat',
+          text: this._getText('neoSetFormat'),
+          blockType: BlockType.COMMAND,
+          arguments: {
+            FORMAT: {
+              type: ArgumentType.STRING,
+              defaultValue: 'GRB',
+              menu: 'NEO_FORMAT'
+            }
+          }
+        }, {
           opcode: 'neoBrightness',
           text: this._getText('neoBrightness'),
           blockType: BlockType.COMMAND,
