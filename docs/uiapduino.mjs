@@ -6099,6 +6099,11 @@ var message = {
     'ja-Hira': 'NeoPixel を [COUNT] こ あかるさ [BRIGHTNESS] % で はじめる',
     en: 'start NeoPixel with [COUNT] LEDs at [BRIGHTNESS] % brightness'
   },
+  neoSetFormat: {
+    ja: 'NeoPixel の転送形式を [FORMAT] にする',
+    'ja-Hira': 'NeoPixel の てんそう ふぉーまっとを [FORMAT] にする',
+    en: 'set NeoPixel transfer format to [FORMAT]'
+  },
   neoBrightness: {
     ja: 'NeoPixel の明るさを [BRIGHTNESS] % にする',
     'ja-Hira': 'NeoPixel の あかるさを [BRIGHTNESS] % にする',
@@ -6363,6 +6368,13 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
     this._neoDirtyFrom = 0;
     /** @type {number} */
     this._neoDirtyTo = -1;
+
+    /**
+     * NeoPixel の転送フォーマット。WS2812B は通常 GRB だが、
+     * RGB を使うデバイスやテスト環境ではここを切り替える。
+     * @type {'GRB'|'RGB'}
+     */
+    this._neoFormat = 'GRB';
 
     /**
      * 「まとめて表示する〔 〕」の入れ子の深さ。0 より大きい間は自動表示を止める。
@@ -6943,6 +6955,17 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
             }
           }
         }, {
+          opcode: 'neoSetFormat',
+          text: this._getText('neoSetFormat'),
+          blockType: BlockType.COMMAND,
+          arguments: {
+            FORMAT: {
+              type: ArgumentType.STRING,
+              defaultValue: 'GRB',
+              menu: 'NEO_FORMAT'
+            }
+          }
+        }, {
           opcode: 'neoBrightness',
           text: this._getText('neoBrightness'),
           blockType: BlockType.COMMAND,
@@ -7270,6 +7293,16 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
             }, {
               text: this._getText('modeInputPullup'),
               value: '2'
+            }]
+          },
+          NEO_FORMAT: {
+            acceptReporters: true,
+            items: [{
+              text: 'GRB',
+              value: 'GRB'
+            }, {
+              text: 'RGB',
+              value: 'RGB'
             }]
           },
           LEVEL: {
@@ -9298,9 +9331,16 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
     key: "_neoWrite",
     value: function _neoWrite(index, rgb) {
       var at = index * 3;
-      this._neoBuf[at] = rgb[0];
-      this._neoBuf[at + 1] = rgb[1];
-      this._neoBuf[at + 2] = rgb[2];
+      var format = this._neoFormat || 'GRB';
+      if (format === 'RGB') {
+        this._neoBuf[at] = rgb[0];
+        this._neoBuf[at + 1] = rgb[1];
+        this._neoBuf[at + 2] = rgb[2];
+      } else {
+        this._neoBuf[at] = rgb[1];
+        this._neoBuf[at + 1] = rgb[0];
+        this._neoBuf[at + 2] = rgb[2];
+      }
     }
 
     /**
@@ -9462,6 +9502,14 @@ var Scratch3Uiapduino = /*#__PURE__*/function () {
       }).then(function () {
         return _this17.processor.request(CMD.NEO_SHOW);
       }).catch(function () {});
+    }
+  }, {
+    key: "neoSetFormat",
+    value: function neoSetFormat(args) {
+      if (!this._neoReady()) return Promise.resolve();
+      var format = String(args.FORMAT || 'GRB').toUpperCase();
+      this._neoFormat = format === 'RGB' ? 'RGB' : 'GRB';
+      return Promise.resolve();
     }
   }, {
     key: "neoBrightness",
